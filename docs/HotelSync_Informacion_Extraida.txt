@@ -1,0 +1,60 @@
+HOTELSYNC - PLATAFORMA DE GESTIÓN HOTELERA MULTI-PROPIEDAD
+
+1. Visión General del Proyecto
+El presente documento formaliza la asignación y define el alcance del proyecto HotelSync, una plataforma diseñada para unificar la gestión de una cadena hotelera con múltiples propiedades distribuidas en distintas ciudades, sustituyendo los sistemas de gestión de propiedades (PMS) aislados que opera cada hotel de forma independiente. El objetivo es centralizar la disponibilidad, tarifas, reservas y operación diaria (check-in/check-out, housekeeping, mantenimiento de habitaciones) en un único ecosistema de microservicios que permita a la central optimizar el revenue management entre propiedades y ofrecer una experiencia de huésped consistente sin importar el hotel en el que se aloje.
+
+La arquitectura pondrá especial énfasis en el servicio de disponibilidad y tarifas, que debe sincronizarse en tiempo real con canales de distribución externos (Booking.com, Expedia, Airbnb) mediante un patrón de channel manager, evitando la sobreventa de habitaciones que surge cuando la misma habitación se vende simultáneamente por dos canales distintos sin actualización inmediata del inventario compartido.
+
+2. Funcionalidades Clave del Sistema
+• Microservicio de Propiedades y Habitaciones (Property Service): Administra el catálogo de hoteles, tipos de habitación, capacidad, servicios asociados (vista al mar, balcón, accesibilidad) y las políticas de cancelación específicas de cada propiedad.
+• Microservicio de Disponibilidad y Tarifas (Rate & Availability Service): Núcleo transaccional que gestiona el inventario de habitaciones por fecha, aplica reglas de precios dinámicos (temporada alta/baja, ocupación proyectada, eventos locales) y expone la disponibilidad consolidada al Channel Manager Service para su distribución a canales externos.
+• Microservicio de Channel Manager (Channel Manager Service): Sincroniza en tiempo real la disponibilidad y tarifas con las OTAs (Online Travel Agencies) externas, y recibe reservas entrantes de dichos canales mediante webhooks, traduciéndolas al formato interno del sistema.
+• Microservicio de Reservas (Booking Service): Gestiona el ciclo de vida de la reserva, ya sea directa desde la web propia, por canal externo o por central telefónica de reservas, con bloqueo optimista para evitar sobreventas al confirmar una habitación específica.
+• Microservicio de Operación Hotelera (Front Desk Service): Soporta el proceso de check-in/check-out, la asignación de la habitación física concreta (distinta del tipo de habitación reservado), la gestión de solicitudes especiales del huésped y el registro de incidencias durante la estancia.
+• Microservicio de Housekeeping (Housekeeping Service): Gestiona el estado de limpieza de cada habitación física (sucia, en limpieza, lista, en mantenimiento) y la asignación de tareas al personal de limpieza, sincronizado con el estado de ocupación del Front Desk Service.
+• Microservicio de Facturación (Billing Service): Consolida los cargos de habitación, servicios adicionales (minibar, spa, restaurante) y genera la factura final con soporte multi-moneda y cumplimiento fiscal por país.
+• Microservicio de Fidelización (Loyalty Service): Programa de puntos y beneficios para huéspedes recurrentes, válido entre todas las propiedades de la cadena, con niveles de membresía (plata, oro, platino).
+• Panel de Revenue Management (Analytics Service): Dashboards de ocupación, ADR (tarifa promedio diaria), RevPAR (ingreso por habitación disponible) y previsión de demanda por propiedad, alimentando decisiones de ajuste de tarifas.
+
+3. Arquitectura de Microservicios Detallada
+1. API Gateway: Enrutamiento para el panel de recepción de cada hotel, la web pública de reservas directas y el Channel Manager Service.
+2. Property Service: Maestro de propiedades y tipos de habitación, consultado por el resto de servicios para obtener el contexto de cada hotel.
+3. Rate & Availability Service: Publica availability.updated ante cualquier cambio de inventario (nueva reserva, cancelación, bloqueo manual por mantenimiento).
+4. Channel Manager Service: Se suscribe a availability.updated para sincronizar con las OTAs externas en tiempo real, y consume webhooks de reservas entrantes de dichos canales, publicando booking.created a partir de ellas.
+5. Booking Service: Publica booking.created (para reservas directas) y booking.cancelled.
+6. Front Desk Service: Consume booking.created para preparar la lista de llegadas del día y facilita el check-in con asignación de habitación física.
+7. Housekeeping Service: Se suscribe a checkout.completed para generar automáticamente la tarea de limpieza correspondiente.
+8. Billing Service: Consume checkout.completed para cerrar la factura final, incluyendo todos los cargos acumulados durante la estancia.
+9. Loyalty Service: Consume booking.completed (tras el checkout) para acumular los puntos correspondientes según el nivel de membresía del huésped.
+10. Analytics Service: Ejecuta ETL periódico para calcular KPIs de revenue management sobre réplicas de solo lectura.
+
+4. Estrategia de Base de Datos
+• Property DB: hotels (id, name, city, country, timezone); room_types (hotel_id, name, capacity, base_rate, amenities).
+• Rate & Availability DB: Alta concurrencia. inventory (room_type_id, date, available_count, blocked_count), rate_rules (room_type_id, date_range, multiplier, min_stay). Índices críticos en (room_type_id, date) para consultas rápidas de disponibilidad.
+• Channel Manager DB: channel_mappings (room_type_id, channel_name, external_room_id), sync_log.
+• Booking DB: bookings (id, guest_id, hotel_id, room_type_id, check_in, check_out, status, channel, total_amount).
+• Front Desk DB: room_assignments (booking_id, physical_room_number, checked_in_at, checked_out_at); guest_incidents.
+• Housekeeping DB: room_status (room_id, status, assigned_to, updated_at), cleaning_history.
+• Billing DB: folios (booking_id, currency, total), charges (folio_id, concept, amount, added_at).
+• Loyalty DB: loyalty_accounts (guest_id, tier, points_balance), points_transactions.
+• Analytics DB: occupancy_daily, revpar_by_property, adr_by_property.
+
+5. Pila Tecnológica (Stack) Propuesta
+• Backend: NestJS sobre Node.js para servicios transaccionales; se pone especial cuidado en el Rate & Availability Service, que requiere alta concurrencia y consistencia estricta durante picos de venta (ej. black friday de viajes).
+• ORM: Prisma. Comunicación Asíncrona: RabbitMQ, dada la necesidad de garantías de entrega frente a los canales externos (una desincronización con una OTA puede provocar sobreventas costosas y penalizaciones contractuales).
+• Base de Datos: PostgreSQL (Render). Caché: Redis para consultas frecuentes de disponibilidad desde la web pública, con invalidación inmediata ante cualquier cambio de inventario.
+• Frontend: Next.js con TypeScript y TailwindCSS para el panel de recepción y el módulo de revenue management, desplegado en Vercel. Web pública de reservas con renderizado SSR para SEO por ciudad y propiedad.
+
+6. Comunicación entre Servicios
+• Síncrona (REST): El Front Desk Service consulta la reserva del día al Booking Service al iniciar el turno; el panel de recepción consulta tarifas vigentes al Rate & Availability Service.
+• Asíncrona (Eventos): El flujo reserva -> check-in -> checkout -> housekeeping -> facturación se coordina mediante eventos para desacoplar la operación diaria del hotel del cierre contable centralizado.
+• Patrón Saga: Para la sincronización con canales externos, garantizando que una reserva confirmada en una OTA se refleje de forma consistente en el inventario interno; ante un conflicto de sobreventa detectado tras la sincronización, se dispara una compensación que reubica al huésped en una habitación equivalente o notifica la incidencia al equipo de revenue management.
+
+7. DevOps y Despliegue (CI/CD)
+GitHub Actions con pipeline por servicio: linting, pruebas unitarias e integración (Jest), pruebas de carga específicas para el Rate & Availability Service (k6, simulando picos de reserva simultánea), construcción de imagen Docker multi-stage y despliegue en Render vía GHCR con rolling updates.
+
+8. Entorno de Despliegue y Seguridad
+Frontend en Vercel; backend y bases de datos en Render con red privada. JWT con refresh tokens; rate limiting en el Gateway; cifrado de datos personales de huéspedes; integración con pasarelas de pago PCI-DSS compliant sin almacenar datos completos de tarjeta.
+
+9. Observabilidad
+Prometheus para métricas de ocupación en tiempo real y latencia de sincronización con OTAs; Grafana con dashboards de revenue management por propiedad; logs centralizados con trazabilidad por booking_id.
