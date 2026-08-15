@@ -21,4 +21,4 @@ NestJS + Prisma + PostgreSQL (Render) + Redis + RabbitMQ | Next.js + TypeScript 
 ## Documentación
 
 - [PRD](docs/HotelSync_PRD.md)
-- [Información extraída](docs/HotelSync_Informacion_Extraida.txt)
+- [Información extraída](docs/HotelSync_Informacion_Extraida.txt) (fuente original en `docs/`)
