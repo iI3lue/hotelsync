@@ -1,0 +1,136 @@
+services:
+  property-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: property_db
+      POSTGRES_USER: hotelsync
+      POSTGRES_PASSWORD: hotelsync_dev
+    ports:
+      - "5432:5432"
+    volumes:
+      - property_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotelsync -d property_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  rate-availability-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: rate_availability_db
+      POSTGRES_USER: hotelsync
+      POSTGRES_PASSWORD: hotelsync_dev
+    ports:
+      - "5433:5432"
+    volumes:
+      - rate_availability_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotelsync -d rate_availability_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  booking-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: booking_db
+      POSTGRES_USER: hotelsync
+      POSTGRES_PASSWORD: hotelsync_dev
+    ports:
+      - "5434:5432"
+    volumes:
+      - booking_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotelsync -d booking_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  front-desk-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: front_desk_db
+      POSTGRES_USER: hotelsync
+      POSTGRES_PASSWORD: hotelsync_dev
+    ports:
+      - "5435:5432"
+    volumes:
+      - front_desk_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotelsync -d front_desk_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  property-service:
+    build:
+      context: .
+      dockerfile: services/property-service/Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      NODE_ENV: production
+      PORT: "3001"
+      DATABASE_URL: postgresql://hotelsync:hotelsync_dev@property-db:5432/property_db
+    depends_on:
+      property-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  rate-availability-service:
+    build:
+      context: .
+      dockerfile: services/rate-availability-service/Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      NODE_ENV: production
+      PORT: "3002"
+      DATABASE_URL: postgresql://hotelsync:hotelsync_dev@rate-availability-db:5432/rate_availability_db
+    depends_on:
+      rate-availability-db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  booking-service:
+    build:
+      context: .
+      dockerfile: services/booking-service/Dockerfile
+    ports:
+      - "3004:3004"
+    environment:
+      NODE_ENV: production
+      PORT: "3004"
+      DATABASE_URL: postgresql://hotelsync:hotelsync_dev@booking-db:5432/booking_db
+      RATE_SERVICE_URL: http://rate-availability-service:3002/v1
+    depends_on:
+      booking-db:
+        condition: service_healthy
+      rate-availability-service:
+        condition: service_started
+    restart: unless-stopped
+
+  front-desk-service:
+    build:
+      context: .
+      dockerfile: services/front-desk-service/Dockerfile
+    ports:
+      - "3005:3005"
+    environment:
+      NODE_ENV: production
+      PORT: "3005"
+      DATABASE_URL: postgresql://hotelsync:hotelsync_dev@front-desk-db:5432/front_desk_db
+      BOOKING_SERVICE_URL: http://booking-service:3004/v1
+    depends_on:
+      front-desk-db:
+        condition: service_healthy
+      booking-service:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  property_data:
+  rate_availability_data:
+  booking_data:
+  front_desk_data:

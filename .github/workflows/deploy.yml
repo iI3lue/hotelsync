@@ -1,0 +1,23 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    needs: [ci]
+    if: always() && needs.ci.result == 'success'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy to Render
+        run: |
+          echo "Deploy workflow placeholder"
+          echo "Configure Render service hooks for each service"
+          echo "Property Service → Render Web Service"
+          echo "Rate & Availability Service → Render Web Service"
+          echo "Web Frontend → Vercel"
+          echo "Admin Frontend → Vercel"

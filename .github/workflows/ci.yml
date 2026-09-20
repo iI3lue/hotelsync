@@ -1,0 +1,105 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint-test-build:
+    runs-on: ubuntu-latest
+
+    services:
+      property-db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: property_db
+          POSTGRES_USER: hotelsync
+          POSTGRES_PASSWORD: hotelsync_dev
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      rate-db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: rate_availability_db
+          POSTGRES_USER: hotelsync
+          POSTGRES_PASSWORD: hotelsync_dev
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      booking-db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: booking_db
+          POSTGRES_USER: hotelsync
+          POSTGRES_PASSWORD: hotelsync_dev
+        ports:
+          - 5434:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      front-desk-db:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: front_desk_db
+          POSTGRES_USER: hotelsync
+          POSTGRES_PASSWORD: hotelsync_dev
+        ports:
+          - 5435:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Prisma migrations
+        run: |
+          cd services/property-service
+          npx prisma migrate deploy
+          cd ../rate-availability-service
+          npx prisma migrate deploy
+          cd ../booking-service
+          npx prisma migrate deploy
+          cd ../front-desk-service
+          npx prisma migrate deploy
+
+      - name: Build services
+        run: |
+          npm run build --workspace=services/property-service
+          npm run build --workspace=services/rate-availability-service
+          npm run build --workspace=services/booking-service
+          npm run build --workspace=services/front-desk-service
+
+      - name: Build frontend
+        run: |
+          npm run build --workspace=apps/web
+          npm run build --workspace=apps/admin
+
+      - name: Run tests
+        run: npm test --workspaces --if-present
