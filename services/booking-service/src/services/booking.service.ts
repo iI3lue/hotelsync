@@ -1,6 +1,6 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../middleware/error-handler.js";
-import { publishEvent } from "../lib/events.js";
+import { enqueueOutboxEvent } from "../lib/outbox.js";
 import { reserveInventory, releaseInventory } from "../lib/rate-client.js";
 import {
   CreateBookingInput,
@@ -21,23 +21,34 @@ export class BookingService {
       );
     }
 
-    const booking = await prisma.booking.create({
-      data: {
-        guest_id: data.guest_id,
-        hotel_id: data.hotel_id,
-        room_type_id: data.room_type_id,
-        check_in: new Date(data.check_in),
-        check_out: new Date(data.check_out),
-        channel: data.channel,
-        total_amount: data.total_amount,
-      },
-    });
+    // Outbox transaccional: reserva + evento se confirman juntos.
+    // Si el proceso muere aquí, no hay fila en outbox (rollback) y el
+    // dispatcher nunca publica un evento huérfano. El dispatcher publica
+    // a RabbitMQ con confirm y marca `sent` solo tras el confirm.
+    const booking = await prisma.$transaction(async (tx) => {
+      const created = await tx.booking.create({
+        data: {
+          guest_id: data.guest_id,
+          hotel_id: data.hotel_id,
+          room_type_id: data.room_type_id,
+          check_in: new Date(data.check_in),
+          check_out: new Date(data.check_out),
+          channel: data.channel,
+          total_amount: data.total_amount,
+        },
+      });
 
-    publishEvent("booking.created", {
-      booking_id: booking.booking_id,
-      hotel_id: booking.hotel_id,
-      room_type_id: booking.room_type_id,
-      channel: booking.channel,
+      await enqueueOutboxEvent(tx, "booking.created", {
+        booking_id: created.booking_id,
+        guest_id: created.guest_id,
+        hotel_id: created.hotel_id,
+        room_type_id: created.room_type_id,
+        check_in: created.check_in.toISOString().slice(0, 10),
+        check_out: created.check_out.toISOString().slice(0, 10),
+        channel: created.channel,
+      });
+
+      return created;
     });
 
     return booking;
@@ -149,15 +160,19 @@ export class BookingService {
       });
     }
 
-    const cancelled = await prisma.booking.update({
-      where: { booking_id: id },
-      data: { status: "cancelled" },
-    });
+    const cancelled = await prisma.$transaction(async (tx) => {
+      const updated = await tx.booking.update({
+        where: { booking_id: id },
+        data: { status: "cancelled" },
+      });
 
-    publishEvent("booking.cancelled", {
-      booking_id: cancelled.booking_id,
-      hotel_id: cancelled.hotel_id,
-      room_type_id: cancelled.room_type_id,
+      await enqueueOutboxEvent(tx, "booking.cancelled", {
+        booking_id: updated.booking_id,
+        hotel_id: updated.hotel_id,
+        room_type_id: updated.room_type_id,
+      });
+
+      return updated;
     });
 
     return cancelled;

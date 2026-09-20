@@ -14,6 +14,12 @@ jest.mock("../../src/lib/prisma.js", () => ({
       update: jest.fn(),
       updateMany: jest.fn(),
     },
+    eventOutbox: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+    },
+    $transaction: jest.fn(),
   },
 }));
 
@@ -33,6 +39,9 @@ import { reserveInventory, releaseInventory } from "../../src/lib/rate-client.js
 const mockPrisma = prisma as any;
 const mockReserve = reserveInventory as jest.Mock;
 const mockRelease = releaseInventory as jest.Mock;
+
+// $transaction interactiva: passthrough al mismo mock (tx === prisma mockeado)
+mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
 
 const app = express();
 app.use(express.json());
@@ -83,6 +92,8 @@ describe("Booking Service API", () => {
         booking_id: VALID_UUID,
         status: "pending",
         ...validPayload,
+        check_in: new Date("2026-10-01"),
+        check_out: new Date("2026-10-05"),
       });
 
       const res = await request(app).post("/v1/bookings").send(validPayload);

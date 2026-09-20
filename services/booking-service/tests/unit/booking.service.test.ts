@@ -12,6 +12,12 @@ jest.mock("../../src/lib/prisma.js", () => ({
       update: jest.fn(),
       updateMany: jest.fn(),
     },
+    eventOutbox: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+    },
+    $transaction: jest.fn(),
   },
 }));
 
@@ -32,6 +38,9 @@ import { reserveInventory, releaseInventory } from "../../src/lib/rate-client.js
 const mockPrisma = prisma as any;
 const mockReserve = reserveInventory as jest.Mock;
 const mockRelease = releaseInventory as jest.Mock;
+
+// $transaction interactiva: passthrough al mismo mock (tx === prisma mockeado)
+mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
 
 const VALID_UUID = "a1b2c3d4-e5f6-4890-abcd-ef1234567890";
 const GUEST_ID = "b1b2c3d4-e5f6-4890-abcd-ef1234567890";
@@ -60,13 +69,20 @@ describe("BookingService", () => {
   });
 
   describe("create", () => {
-    it("should create a pending booking and emit booking.created", async () => {
-      const created = { booking_id: VALID_UUID, status: "pending", ...baseInput };
+    it("should create a pending booking and enqueue booking.created in the same transaction", async () => {
+      const created = {
+        booking_id: VALID_UUID,
+        status: "pending",
+        ...baseInput,
+        check_in: new Date("2026-10-01"),
+        check_out: new Date("2026-10-05"),
+      };
       mockPrisma.booking.create.mockResolvedValue(created);
 
       const result = await bookingService.create(baseInput);
 
       expect(result).toEqual(created);
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
       expect(mockPrisma.booking.create).toHaveBeenCalledWith({
         data: {
           guest_id: GUEST_ID,
@@ -76,6 +92,20 @@ describe("BookingService", () => {
           check_out: new Date("2026-10-05"),
           channel: "direct",
           total_amount: 25500,
+        },
+      });
+      expect(mockPrisma.eventOutbox.create).toHaveBeenCalledWith({
+        data: {
+          event_type: "booking.created",
+          payload: {
+            booking_id: VALID_UUID,
+            guest_id: GUEST_ID,
+            hotel_id: HOTEL_ID,
+            room_type_id: ROOM_TYPE_ID,
+            check_in: "2026-10-01",
+            check_out: "2026-10-05",
+            channel: "direct",
+          },
         },
       });
     });
@@ -248,6 +278,8 @@ describe("BookingService", () => {
       });
       mockPrisma.booking.update.mockResolvedValue({
         booking_id: VALID_UUID,
+        hotel_id: HOTEL_ID,
+        room_type_id: ROOM_TYPE_ID,
         status: "cancelled",
       });
 
@@ -259,6 +291,16 @@ describe("BookingService", () => {
         data: { status: "cancelled" },
       });
       expect(result.status).toBe("cancelled");
+      expect(mockPrisma.eventOutbox.create).toHaveBeenCalledWith({
+        data: {
+          event_type: "booking.cancelled",
+          payload: {
+            booking_id: VALID_UUID,
+            hotel_id: HOTEL_ID,
+            room_type_id: ROOM_TYPE_ID,
+          },
+        },
+      });
     });
 
     it("should not release inventory for a pending booking", async () => {
