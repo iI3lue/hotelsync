@@ -1,10 +1,7 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../middleware/error-handler.js";
-import { publishEvent } from "../lib/events.js";
-import {
-  fetchBooking,
-  fetchConfirmedBookings,
-} from "../lib/booking-client.js";
+import { enqueueOutboxEvent } from "../lib/outbox.js";
+import { fetchBooking } from "../lib/booking-client.js";
 import {
   ArrivalsQuery,
   CheckInInput,
@@ -15,10 +12,22 @@ import {
 export class FrontDeskService {
   /**
    * Llegadas del día: reservas `confirmed` del hotel que cubren la fecha.
-   * Lectura vía REST a Booking Service (fuente §6, comunicación síncrona).
+   *
+   * Lee el read model local (`arrivals`), proyectado desde
+   * `booking.created` / `booking.cancelled` vía RabbitMQ (fuente §6,
+   * comunicación asíncrona garantizada con outbox).
    */
   async getArrivals(query: ArrivalsQuery) {
-    return fetchConfirmedBookings(query.hotel_id, query.date);
+    const date = new Date(query.date);
+    return prisma.arrival.findMany({
+      where: {
+        hotel_id: query.hotel_id,
+        status: "confirmed",
+        check_in: { lte: date },
+        check_out: { gte: date },
+      },
+      orderBy: { check_in: "asc" },
+    });
   }
 
   async checkIn(data: CheckInInput) {
@@ -81,14 +90,21 @@ export class FrontDeskService {
       );
     }
 
-    const closed = await prisma.roomAssignment.update({
-      where: { booking_id: data.booking_id },
-      data: { checked_out_at: new Date() },
-    });
+    // Outbox transaccional: cierre + evento se confirman juntos.
+    // El dispatcher publica `checkout.completed` a RabbitMQ con confirm
+    // (lo consumen Housekeeping y Billing, fuente §6).
+    const closed = await prisma.$transaction(async (tx) => {
+      const updated = await tx.roomAssignment.update({
+        where: { booking_id: data.booking_id },
+        data: { checked_out_at: new Date() },
+      });
 
-    publishEvent("checkout.completed", {
-      booking_id: closed.booking_id,
-      physical_room_number: closed.physical_room_number,
+      await enqueueOutboxEvent(tx, "checkout.completed", {
+        booking_id: updated.booking_id,
+        physical_room_number: updated.physical_room_number,
+      });
+
+      return updated;
     });
 
     return closed;

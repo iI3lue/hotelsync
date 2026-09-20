@@ -21,6 +21,17 @@ jest.mock("../../src/lib/prisma.js", () => ({
       create: jest.fn(),
       update: jest.fn(),
     },
+    arrival: {
+      findMany: jest.fn(),
+      upsert: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    eventOutbox: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+    },
+    $transaction: jest.fn(),
   },
 }));
 
@@ -44,6 +55,9 @@ import {
 const mockPrisma = prisma as any;
 const mockFetchBooking = fetchBooking as jest.Mock;
 const mockFetchConfirmed = fetchConfirmedBookings as jest.Mock;
+
+// $transaction interactiva: passthrough al mismo mock (tx === prisma mockeado)
+mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
 
 const app = express();
 app.use(express.json());
@@ -80,8 +94,8 @@ describe("Front Desk Service API", () => {
   });
 
   describe("GET /v1/arrivals", () => {
-    it("should return arrivals for hotel and date", async () => {
-      mockFetchConfirmed.mockResolvedValue([
+    it("should return arrivals for hotel and date from the local read model", async () => {
+      mockPrisma.arrival.findMany.mockResolvedValue([
         { booking_id: BOOKING_ID, status: "confirmed" },
       ]);
 
@@ -91,6 +105,7 @@ describe("Front Desk Service API", () => {
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
+      expect(mockFetchConfirmed).not.toHaveBeenCalled();
     });
 
     it("should return 400 with missing params", async () => {

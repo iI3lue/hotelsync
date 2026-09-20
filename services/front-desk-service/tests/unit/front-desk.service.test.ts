@@ -19,6 +19,17 @@ jest.mock("../../src/lib/prisma.js", () => ({
       create: jest.fn(),
       update: jest.fn(),
     },
+    arrival: {
+      findMany: jest.fn(),
+      upsert: jest.fn(),
+      updateMany: jest.fn(),
+    },
+    eventOutbox: {
+      create: jest.fn(),
+      findMany: jest.fn(),
+      update: jest.fn(),
+    },
+    $transaction: jest.fn(),
   },
 }));
 
@@ -43,6 +54,9 @@ const mockPrisma = prisma as any;
 const mockFetchBooking = fetchBooking as jest.Mock;
 const mockFetchConfirmed = fetchConfirmedBookings as jest.Mock;
 
+// $transaction interactiva: passthrough al mismo mock (tx === prisma mockeado)
+mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
+
 const BOOKING_ID = "a1b2c3d4-e5f6-4890-abcd-ef1234567890";
 const HOTEL_ID = "c1b2c3d4-e5f6-4890-abcd-ef1234567890";
 
@@ -58,16 +72,26 @@ describe("FrontDeskService", () => {
   });
 
   describe("getArrivals", () => {
-    it("should return confirmed bookings from Booking Service", async () => {
-      mockFetchConfirmed.mockResolvedValue([confirmedBooking]);
+    it("should return confirmed arrivals from the local read model", async () => {
+      const arrivals = [{ booking_id: BOOKING_ID, hotel_id: HOTEL_ID }];
+      mockPrisma.arrival.findMany.mockResolvedValue(arrivals);
 
       const result = await frontDeskService.getArrivals({
         hotel_id: HOTEL_ID,
         date: "2026-10-02",
       });
 
-      expect(result).toEqual([confirmedBooking]);
-      expect(mockFetchConfirmed).toHaveBeenCalledWith(HOTEL_ID, "2026-10-02");
+      expect(result).toEqual(arrivals);
+      expect(mockPrisma.arrival.findMany).toHaveBeenCalledWith({
+        where: {
+          hotel_id: HOTEL_ID,
+          status: "confirmed",
+          check_in: { lte: new Date("2026-10-02") },
+          check_out: { gte: new Date("2026-10-02") },
+        },
+        orderBy: { check_in: "asc" },
+      });
+      expect(mockFetchConfirmed).not.toHaveBeenCalled();
     });
   });
 
@@ -150,6 +174,16 @@ describe("FrontDeskService", () => {
         data: { checked_out_at: expect.any(Date) },
       });
       expect(result.checked_out_at).toBeTruthy();
+      expect(mockPrisma.$transaction).toHaveBeenCalled();
+      expect(mockPrisma.eventOutbox.create).toHaveBeenCalledWith({
+        data: {
+          event_type: "checkout.completed",
+          payload: {
+            booking_id: BOOKING_ID,
+            physical_room_number: "101",
+          },
+        },
+      });
     });
 
     it("should throw 404 when there is no active check-in", async () => {
