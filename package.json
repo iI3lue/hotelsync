@@ -1,0 +1,34 @@
+{
+  "name": "hotelsync",
+  "version": "1.0.0",
+  "private": true,
+  "description": "HotelSync — multi-property hotel management platform",
+  "workspaces": [
+    "services/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "dev:property": "npm run dev --workspace=services/property-service",
+    "dev:rate": "npm run dev --workspace=services/rate-availability-service",
+    "dev:booking": "npm run dev --workspace=services/booking-service",
+    "dev:front-desk": "npm run dev --workspace=services/front-desk-service",
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:admin": "npm run dev --workspace=apps/admin",
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces --if-present",
+    "lint": "npm run lint --workspaces --if-present",
+    "db:up": "docker compose up -d",
+    "db:down": "docker compose down",
+    "migrate:property": "npx prisma migrate dev --workspace=services/property-service",
+    "migrate:rate": "npx prisma migrate dev --workspace=services/rate-availability-service",
+    "migrate:booking": "npx prisma migrate dev --workspace=services/booking-service",
+    "migrate:front-desk": "npx prisma migrate dev --workspace=services/front-desk-service",
+    "seed:property": "npm run seed --workspace=services/property-service",
+    "seed:rate": "npm run seed --workspace=services/rate-availability-service",
+    "seed:booking": "npm run seed --workspace=services/booking-service",
+    "seed:front-desk": "npm run seed --workspace=services/front-desk-service"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

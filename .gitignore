@@ -9,6 +9,11 @@ build/
 .next/
 out/
 coverage/
+*.tsbuildinfo
+
+# Office lock/temp files
+~$*
+*.tmp
 
 # Environment
 .env
@@ -40,6 +45,11 @@ coverage/
 
 # Prisma
 generated/
+*.db
+
+# Test
+coverage/
+.nyc_output/
 
 # SDD tooling artifacts
 .atl/
