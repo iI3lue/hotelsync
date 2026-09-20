@@ -1,4 +1,18 @@
 services:
+  rabbitmq:
+    image: rabbitmq:3.13-management
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   property-db:
     image: postgres:16-alpine
     environment:
@@ -104,11 +118,14 @@ services:
       PORT: "3004"
       DATABASE_URL: postgresql://hotelsync:hotelsync_dev@booking-db:5432/booking_db
       RATE_SERVICE_URL: http://rate-availability-service:3002/v1
+      RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
       booking-db:
         condition: service_healthy
       rate-availability-service:
         condition: service_started
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped
 
   front-desk-service:
@@ -122,11 +139,14 @@ services:
       PORT: "3005"
       DATABASE_URL: postgresql://hotelsync:hotelsync_dev@front-desk-db:5432/front_desk_db
       BOOKING_SERVICE_URL: http://booking-service:3004/v1
+      RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
       front-desk-db:
         condition: service_healthy
       booking-service:
         condition: service_started
+      rabbitmq:
+        condition: service_healthy
     restart: unless-stopped
 
 volumes:
@@ -134,3 +154,4 @@ volumes:
   rate_availability_data:
   booking_data:
   front_desk_data:
+  rabbitmq_data:
