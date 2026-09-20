@@ -4,10 +4,12 @@ import { AppError } from "../../src/middleware/error-handler.js";
 jest.mock("../../src/lib/prisma.js", () => ({
   __esModule: true,
   default: {
+    $transaction: jest.fn(),
     inventory: {
       findUnique: jest.fn(),
       update: jest.fn(),
       create: jest.fn(),
+      updateMany: jest.fn(),
     },
   },
 }));
@@ -102,6 +104,88 @@ describe("InventoryService", () => {
 
       await expect(
         inventoryService.unblock("rt1", "2026-01-15", 5)
+      ).rejects.toThrow(AppError);
+    });
+  });
+
+  describe("reserve", () => {
+    const txMock = { inventory: { updateMany: jest.fn() } };
+
+    beforeEach(() => {
+      mockPrisma.$transaction.mockImplementation(
+        async (cb: (tx: typeof txMock) => Promise<void>) => cb(txMock)
+      );
+    });
+
+    it("should decrement inventory for each date of the stay", async () => {
+      txMock.inventory.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await inventoryService.reserve(
+        "rt1",
+        "2026-10-01",
+        "2026-10-05",
+        1
+      );
+
+      expect(result.reserved).toBe(true);
+      expect(txMock.inventory.updateMany).toHaveBeenCalledTimes(4);
+      expect(txMock.inventory.updateMany).toHaveBeenLastCalledWith({
+        where: {
+          room_type_id: "rt1",
+          date: new Date("2026-10-04"),
+          available_count: { gte: 1 },
+        },
+        data: { available_count: { decrement: 1 } },
+      });
+    });
+
+    it("should throw 409 when a date has no availability", async () => {
+      txMock.inventory.updateMany
+        .mockResolvedValueOnce({ count: 1 })
+        .mockResolvedValueOnce({ count: 0 });
+
+      await expect(
+        inventoryService.reserve("rt1", "2026-10-01", "2026-10-03", 1)
+      ).rejects.toThrow(AppError);
+    });
+
+    it("should throw 400 when check_out is not after check_in", async () => {
+      await expect(
+        inventoryService.reserve("rt1", "2026-10-05", "2026-10-05", 1)
+      ).rejects.toThrow(AppError);
+    });
+  });
+
+  describe("release", () => {
+    const txMock = { inventory: { updateMany: jest.fn() } };
+
+    beforeEach(() => {
+      mockPrisma.$transaction.mockImplementation(
+        async (cb: (tx: typeof txMock) => Promise<void>) => cb(txMock)
+      );
+    });
+
+    it("should increment inventory for each date of the stay", async () => {
+      txMock.inventory.updateMany.mockResolvedValue({ count: 1 });
+
+      const result = await inventoryService.release(
+        "rt1",
+        "2026-10-01",
+        "2026-10-05",
+        1
+      );
+
+      expect(result.released).toBe(true);
+      expect(txMock.inventory.updateMany).toHaveBeenCalledTimes(4);
+      expect(txMock.inventory.updateMany).toHaveBeenLastCalledWith({
+        where: { room_type_id: "rt1", date: new Date("2026-10-04") },
+        data: { available_count: { increment: 1 } },
+      });
+    });
+
+    it("should throw 400 when check_out is not after check_in", async () => {
+      await expect(
+        inventoryService.release("rt1", "2026-10-05", "2026-10-05", 1)
       ).rejects.toThrow(AppError);
     });
   });

@@ -8,9 +8,11 @@ import { errorHandler } from "../../src/middleware/error-handler.js";
 jest.mock("../../src/lib/prisma.js", () => ({
   __esModule: true,
   default: {
+    $transaction: jest.fn(),
     inventory: {
       findUnique: jest.fn(),
       update: jest.fn(),
+      updateMany: jest.fn(),
     },
     rate: {
       findMany: jest.fn(),
@@ -126,6 +128,80 @@ describe("Rate & Availability Service API", () => {
         });
 
       expect(res.status).toBe(400);
+    });
+  });
+
+  describe("POST /v1/availability/reserve", () => {
+    const txMock = { inventory: { updateMany: jest.fn() } };
+
+    beforeEach(() => {
+      mockPrisma.$transaction.mockImplementation(
+        async (cb: (tx: typeof txMock) => Promise<void>) => cb(txMock)
+      );
+    });
+
+    it("should reserve inventory across the stay dates", async () => {
+      txMock.inventory.updateMany.mockResolvedValue({ count: 1 });
+
+      const res = await request(app)
+        .post("/v1/availability/reserve")
+        .send({
+          room_type_id: VALID_UUID,
+          check_in: "2026-10-01",
+          check_out: "2026-10-04",
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.reserved).toBe(true);
+      expect(txMock.inventory.updateMany).toHaveBeenCalledTimes(3);
+    });
+
+    it("should return 409 when there is no availability", async () => {
+      txMock.inventory.updateMany.mockResolvedValue({ count: 0 });
+
+      const res = await request(app)
+        .post("/v1/availability/reserve")
+        .send({
+          room_type_id: VALID_UUID,
+          check_in: "2026-10-01",
+          check_out: "2026-10-02",
+        });
+
+      expect(res.status).toBe(409);
+    });
+
+    it("should return 400 with invalid body", async () => {
+      const res = await request(app)
+        .post("/v1/availability/reserve")
+        .send({ room_type_id: VALID_UUID, check_in: "2026-10-01" });
+
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("POST /v1/availability/release", () => {
+    const txMock = { inventory: { updateMany: jest.fn() } };
+
+    beforeEach(() => {
+      mockPrisma.$transaction.mockImplementation(
+        async (cb: (tx: typeof txMock) => Promise<void>) => cb(txMock)
+      );
+    });
+
+    it("should release inventory across the stay dates", async () => {
+      txMock.inventory.updateMany.mockResolvedValue({ count: 1 });
+
+      const res = await request(app)
+        .post("/v1/availability/release")
+        .send({
+          room_type_id: VALID_UUID,
+          check_in: "2026-10-01",
+          check_out: "2026-10-04",
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body.released).toBe(true);
+      expect(txMock.inventory.updateMany).toHaveBeenCalledTimes(3);
     });
   });
 });

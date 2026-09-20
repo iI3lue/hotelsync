@@ -1,7 +1,7 @@
 import request from "supertest";
 import express from "express";
 import bookingsRouter from "../../src/routes/bookings.js";
-import { errorHandler } from "../../src/middleware/error-handler.js";
+import { errorHandler, AppError } from "../../src/middleware/error-handler.js";
 
 // Mock Prisma
 jest.mock("../../src/lib/prisma.js", () => ({
@@ -22,8 +22,17 @@ jest.mock("../../src/lib/events.js", () => ({
   publishEvent: jest.fn(),
 }));
 
+// Mock Rate & Availability client (RN-1/RN-2 REST)
+jest.mock("../../src/lib/rate-client.js", () => ({
+  reserveInventory: jest.fn(),
+  releaseInventory: jest.fn(),
+}));
+
 import prisma from "../../src/lib/prisma.js";
+import { reserveInventory, releaseInventory } from "../../src/lib/rate-client.js";
 const mockPrisma = prisma as any;
+const mockReserve = reserveInventory as jest.Mock;
+const mockRelease = releaseInventory as jest.Mock;
 
 const app = express();
 app.use(express.json());
@@ -138,23 +147,24 @@ describe("Booking Service API", () => {
   });
 
   describe("POST /v1/bookings/:id/confirm", () => {
-    it("should confirm a pending booking", async () => {
+    it("should confirm a pending booking reserving inventory", async () => {
+      mockReserve.mockResolvedValue({ reserved: true });
       mockPrisma.booking.findUnique
         .mockResolvedValueOnce({
           booking_id: VALID_UUID,
           status: "pending",
           version: 0,
+          room_type_id: ROOM_TYPE_ID,
+          check_in: new Date("2026-10-01"),
+          check_out: new Date("2026-10-05"),
         })
-        .mockResolvedValueOnce({
-          booking_id: VALID_UUID,
-          status: "confirmed",
-          version: 1,
-        });
+        .mockResolvedValueOnce({ booking_id: VALID_UUID, status: "confirmed", version: 1 });
       mockPrisma.booking.updateMany.mockResolvedValue({ count: 1 });
 
       const res = await request(app).post(`/v1/bookings/${VALID_UUID}/confirm`);
       expect(res.status).toBe(200);
       expect(res.body.status).toBe("confirmed");
+      expect(mockReserve).toHaveBeenCalled();
     });
 
     it("should return 409 when booking is not pending", async () => {
@@ -166,14 +176,37 @@ describe("Booking Service API", () => {
 
       const res = await request(app).post(`/v1/bookings/${VALID_UUID}/confirm`);
       expect(res.status).toBe(409);
+      expect(mockReserve).not.toHaveBeenCalled();
+    });
+
+    it("should return 409 when rate service has no availability", async () => {
+      mockReserve.mockRejectedValue(
+        new AppError(409, "Insufficient availability on 2026-10-01", "Conflict")
+      );
+      mockPrisma.booking.findUnique.mockResolvedValue({
+        booking_id: VALID_UUID,
+        status: "pending",
+        version: 0,
+        room_type_id: ROOM_TYPE_ID,
+        check_in: new Date("2026-10-01"),
+        check_out: new Date("2026-10-05"),
+      });
+
+      const res = await request(app).post(`/v1/bookings/${VALID_UUID}/confirm`);
+      expect(res.status).toBe(409);
+      expect(mockPrisma.booking.updateMany).not.toHaveBeenCalled();
     });
   });
 
   describe("POST /v1/bookings/:id/cancel", () => {
-    it("should cancel a booking", async () => {
+    it("should release inventory and cancel a confirmed booking", async () => {
+      mockRelease.mockResolvedValue({ released: true });
       mockPrisma.booking.findUnique.mockResolvedValue({
         booking_id: VALID_UUID,
         status: "confirmed",
+        room_type_id: ROOM_TYPE_ID,
+        check_in: new Date("2026-10-01"),
+        check_out: new Date("2026-10-05"),
       });
       mockPrisma.booking.update.mockResolvedValue({
         booking_id: VALID_UUID,
@@ -183,6 +216,7 @@ describe("Booking Service API", () => {
       const res = await request(app).post(`/v1/bookings/${VALID_UUID}/cancel`);
       expect(res.status).toBe(200);
       expect(res.body.status).toBe("cancelled");
+      expect(mockRelease).toHaveBeenCalled();
     });
 
     it("should return 409 when already cancelled", async () => {
@@ -193,6 +227,7 @@ describe("Booking Service API", () => {
 
       const res = await request(app).post(`/v1/bookings/${VALID_UUID}/cancel`);
       expect(res.status).toBe(409);
+      expect(mockRelease).not.toHaveBeenCalled();
     });
   });
 });

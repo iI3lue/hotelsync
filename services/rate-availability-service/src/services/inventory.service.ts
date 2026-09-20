@@ -1,6 +1,21 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../middleware/error-handler.js";
 
+function enumerateDates(startDate: string, endDate: string): Date[] {
+  const dates: Date[] = [];
+  const current = new Date(`${startDate}T00:00:00Z`);
+  const end = new Date(`${endDate}T00:00:00Z`);
+  while (current < end) {
+    dates.push(new Date(current));
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+function formatDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
 export class InventoryService {
   async getAvailability(roomTypeId: string, date: string) {
     const inventory = await prisma.inventory.findUnique({
@@ -142,6 +157,65 @@ export class InventoryService {
         blocked_count: 0,
       },
     });
+  }
+
+  /**
+   * Reserva inventario para un rango de fechas (RN-1).
+   * Decrementa `available_count` con bloqueo optimista (CAS): si en alguna
+   * fecha no hay stock, la transacción se aborta y no queda decremento parcial.
+   */
+  async reserve(roomTypeId: string, checkIn: string, checkOut: string, count = 1) {
+    const dates = enumerateDates(checkIn, checkOut);
+
+    if (dates.length === 0) {
+      throw new AppError(400, "check_out must be after check_in", "Bad Request");
+    }
+
+    await prisma.$transaction(async (tx) => {
+      for (const date of dates) {
+        const result = await tx.inventory.updateMany({
+          where: {
+            room_type_id: roomTypeId,
+            date,
+            available_count: { gte: count },
+          },
+          data: { available_count: { decrement: count } },
+        });
+
+        if (result.count === 0) {
+          throw new AppError(
+            409,
+            `Insufficient availability on ${formatDate(date)} for room type ${roomTypeId}`,
+            "Conflict"
+          );
+        }
+      }
+    });
+
+    return { reserved: true, start_date: checkIn, end_date: checkOut, count };
+  }
+
+  /**
+   * Libera inventario reservado para un rango de fechas (RN-2).
+   * Incrementa `available_count` por cada fecha de la estancia.
+   */
+  async release(roomTypeId: string, checkIn: string, checkOut: string, count = 1) {
+    const dates = enumerateDates(checkIn, checkOut);
+
+    if (dates.length === 0) {
+      throw new AppError(400, "check_out must be after check_in", "Bad Request");
+    }
+
+    await prisma.$transaction(async (tx) => {
+      for (const date of dates) {
+        await tx.inventory.updateMany({
+          where: { room_type_id: roomTypeId, date },
+          data: { available_count: { increment: count } },
+        });
+      }
+    });
+
+    return { released: true, start_date: checkIn, end_date: checkOut, count };
   }
 }
 

@@ -11,6 +11,46 @@ export class AvailabilityController {
       next(err);
     }
   }
+
+  async reserve(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { room_type_id, check_in, check_out, count } = req.body as {
+        room_type_id: string;
+        check_in: string;
+        check_out: string;
+        count?: number;
+      };
+      const result = await inventoryService.reserve(
+        room_type_id,
+        check_in,
+        check_out,
+        count
+      );
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async release(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { room_type_id, check_in, check_out, count } = req.body as {
+        room_type_id: string;
+        check_in: string;
+        check_out: string;
+        count?: number;
+      };
+      const result = await inventoryService.release(
+        room_type_id,
+        check_in,
+        check_out,
+        count
+      );
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const availabilityController = new AvailabilityController();

@@ -1,10 +1,15 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../middleware/error-handler.js";
 import { publishEvent } from "../lib/events.js";
+import { reserveInventory, releaseInventory } from "../lib/rate-client.js";
 import {
   CreateBookingInput,
   ListBookingsQuery,
 } from "../validators/booking.js";
+
+function toIsoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
 
 export class BookingService {
   async create(data: CreateBookingInput) {
@@ -68,7 +73,11 @@ export class BookingService {
 
   /**
    * Confirma una reserva pendiente con bloqueo optimista (RN anti-sobreventa).
-   * Si la reserva cambió entre la lectura y la escritura, retorna 409.
+   *
+   * Mini-saga RN-1/RN-2: primero decrementa inventario en Rate & Availability
+   * (REST síncrono, lock optimista con CAS sobre `inventory`); solo si el stock
+   * se asegura, transiciona a `confirmed`. Si la confirmación local falla por
+   * concurrencia, compensa liberando el inventario reservado.
    */
   async confirm(id: string) {
     const existing = await prisma.booking.findUnique({
@@ -87,6 +96,14 @@ export class BookingService {
       );
     }
 
+    const range = {
+      room_type_id: existing.room_type_id,
+      check_in: toIsoDate(existing.check_in),
+      check_out: toIsoDate(existing.check_out),
+    };
+
+    await reserveInventory(range);
+
     const updated = await prisma.booking.updateMany({
       where: {
         booking_id: id,
@@ -100,6 +117,7 @@ export class BookingService {
     });
 
     if (updated.count === 0) {
+      await releaseInventory(range).catch(() => undefined);
       throw new AppError(
         409,
         "Booking was modified concurrently, please retry",
@@ -121,6 +139,14 @@ export class BookingService {
 
     if (existing.status === "cancelled") {
       throw new AppError(409, "Booking is already cancelled", "Conflict");
+    }
+
+    if (existing.status === "confirmed") {
+      await releaseInventory({
+        room_type_id: existing.room_type_id,
+        check_in: toIsoDate(existing.check_in),
+        check_out: toIsoDate(existing.check_out),
+      });
     }
 
     const cancelled = await prisma.booking.update({
