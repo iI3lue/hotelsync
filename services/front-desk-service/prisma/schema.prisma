@@ -1,0 +1,31 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model RoomAssignment {
+  assignment_id        String    @id @default(uuid()) @db.Uuid
+  booking_id           String    @unique @db.Uuid
+  physical_room_number String    @db.VarChar(20)
+  checked_in_at        DateTime  @default(now()) @db.Timestamptz(6)
+  checked_out_at       DateTime? @db.Timestamptz(6)
+
+  @@index([booking_id])
+  @@map("room_assignments")
+}
+
+model GuestIncident {
+  incident_id String   @id @default(uuid()) @db.Uuid
+  booking_id  String   @db.Uuid
+  description String   @db.Text
+  status      String   @default("open") @db.VarChar(20)
+  created_at  DateTime @default(now()) @db.Timestamptz(6)
+
+  @@index([booking_id])
+  @@map("guest_incidents")
+}
