@@ -96,6 +96,26 @@ docker compose down
 > Los servicios en Docker usan `DATABASE_URL` con host `property-db` / `rate-availability-db`
 > (red interna) y corren `prisma migrate deploy` al arrancar. Para desarrollo día a día
 > se recomienda `npm run dev` (hot-reload); Docker es para demo / simular producción.
+> Cada servicio (booking, front-desk incluidos) tiene su `.env` propio (copiado de
+> `.env.example`) — sin él Prisma falla con `Environment variable not found: DATABASE_URL`.
+
+## Ver datos visualmente
+
+| Herramienta | URL | Credenciales | Qué muestra |
+|-------------|-----|--------------|-------------|
+| RabbitMQ Management | `http://localhost:15672` | `guest` / `guest` | Exchange `hotelsync.events`, cola `front-desk.arrivals` (Messages/Ready/Acks = flujo async en vivo) |
+| Adminer (4 bases) | `http://localhost:8080` | Sistema `PostgreSQL`, usuario `hotelsync`, clave `hotelsync_dev` | Tablas `bookings`, `event_outbox`, `arrivals`, etc. |
+
+Servidores en Adminer (red interna de compose, puerto `5432`):
+
+| Base | Servidor | Nombre DB |
+|------|----------|-----------|
+| Booking | `booking-db` | `booking_db` |
+| Front Desk | `front-desk-db` | `front_desk_db` |
+| Property | `property-db` | `property_db` |
+| Rate & Availability | `rate-availability-db` | `rate_availability_db` |
+
+> Alternativa sin compose: `npx prisma studio` dentro de cada servicio (usa su `.env`).
 
 ## Endpoints API
 

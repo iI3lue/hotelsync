@@ -77,6 +77,21 @@ services:
       timeout: 5s
       retries: 5
 
+  adminer:
+    image: adminer:4
+    ports:
+      - "8080:8080"
+    depends_on:
+      property-db:
+        condition: service_healthy
+      rate-availability-db:
+        condition: service_healthy
+      booking-db:
+        condition: service_healthy
+      front-desk-db:
+        condition: service_healthy
+    restart: unless-stopped
+
   property-service:
     build:
       context: .
