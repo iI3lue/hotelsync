@@ -77,7 +77,7 @@ npm run dev:admin      # Puerto 3003
 # Construir imágenes de los servicios
 docker compose build property-service rate-availability-service booking-service front-desk-service
 
-# Levantar todo: 4× PostgreSQL + 4× servicios
+# Levantar todo: 4× PostgreSQL + RabbitMQ + 4× servicios
 docker compose up -d
 
 # Ver estado
@@ -138,7 +138,7 @@ docker compose down
 | Método | Ruta | Descripción |
 |--------|------|-------------|
 | GET | `/health` | Health check |
-| GET | `/v1/arrivals?hotel_id=&date=` | Llegadas del día (vía Booking Service) |
+| GET | `/v1/arrivals?hotel_id=&date=` | Llegadas del día (read model local, vía RabbitMQ) |
 | POST | `/v1/check-in` | Check-in con habitación física |
 | POST | `/v1/check-out` | Check-out (emite `checkout.completed`) |
 | GET | `/v1/incidents` | Listar incidencias |
@@ -191,8 +191,14 @@ cd services/front-desk-service && npm test
 └───────────────────┘  └───────────────────────┘  └───────────────────┘  └───────────────────┘
 ```
 
-Front Desk → Booking por REST (`BOOKING_SERVICE_URL`); eventos
-(`booking.created`, `checkout.completed`) como stub con log hasta Fase 2 (RabbitMQ).
+Front Desk → Booking por REST (`BOOKING_SERVICE_URL`) para check-in puntual;
+Booking ↔ Front Desk por RabbitMQ (`RABBITMQ_URL`, exchange topic
+`hotelsync.events`, consola en `:15672`): Booking publica
+`booking.created`/`booking.cancelled` con outbox transaccional + confirms,
+Front Desk proyecta el read model `arrivals` (cola `front-desk.arrivals`,
+ack manual, upsert idempotente) y publica `checkout.completed` también vía
+outbox (lo consumen Housekeeping y Billing). Sin `RABBITMQ_URL` ambos
+servicios operan igual pero los eventos quedan `pending` en el outbox.
 
 ### Modelo de Datos
 
@@ -217,6 +223,7 @@ Front Desk → Booking por REST (`BOOKING_SERVICE_URL`); eventos
 | Tabla | Campos principales | Constraints |
 |-------|-------------------|-------------|
 | `bookings` | booking_id (PK), guest_id, hotel_id, room_type_id, check_in, check_out, status, channel, total_amount, version | @@index(hotel_id, status), @@index(room_type_id, check_in) |
+| `event_outbox` | event_id (PK), event_type, payload (JSONB), status, attempts, created_at, sent_at | @@index(status, created_at) |
 
 #### Front Desk Service
 
@@ -224,6 +231,8 @@ Front Desk → Booking por REST (`BOOKING_SERVICE_URL`); eventos
 |-------|-------------------|-------------|
 | `room_assignments` | assignment_id (PK), booking_id (UNIQUE), physical_room_number, checked_in_at, checked_out_at | Sin doble check-in |
 | `guest_incidents` | incident_id (PK), booking_id, description, status | @@index(booking_id) |
+| `arrivals` | booking_id (PK), hotel_id, room_type_id, guest_id, check_in, check_out, channel, status | Read model de `booking.created`/`cancelled`, @@index(hotel_id, check_in) |
+| `event_outbox` | event_id (PK), event_type, payload (JSONB), status, attempts, created_at, sent_at | @@index(status, created_at) |
 
 ### Reglas de Negocio
 
