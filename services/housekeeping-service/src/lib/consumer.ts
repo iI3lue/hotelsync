@@ -9,19 +9,19 @@ export interface CheckoutCompletedPayload {
 
 type PrismaLike = typeof prisma;
 
-/** Estados válidos de habitación física (HK-1). */
-export const ROOM_STATUSES = ["dirty", "cleaning", "ready", "maintenance"] as const;
+/** Estados válidos de habitación física (HK-1, documento §5.6). */
+export const ROOM_STATUSES = ["dirty", "cleaning", "clean", "maintenance"] as const;
 export type RoomStatus = (typeof ROOM_STATUSES)[number];
 
-/** Estados válidos de tarea de limpieza. */
+/** Estados válidos de la tarea de limpieza. */
 export const TASK_STATUSES = ["pending", "assigned", "in_progress", "done", "cancelled"] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 /**
  * Aplica `checkout.completed` al modelo de housekeeping (HK-2, HK-4):
  * marca la habitación como sucia y crea la tarea de limpieza.
- * Idempotente: `booking_id` es único en tareas y el upsert de habitación
- * deja el mismo estado ante replays del broker.
+ * Idempotente: `booking_id` es único en el historial y el upsert del
+ * estado deja el mismo valor ante replays del broker.
  */
 export async function handleCheckoutCompleted(
   db: PrismaLike,
@@ -35,7 +35,7 @@ export async function handleCheckoutCompleted(
     );
   }
 
-  await db.room.upsert({
+  const roomStatus = await db.roomStatus.upsert({
     where: {
       hotel_id_room_number: {
         hotel_id: booking.hotel_id,
@@ -50,12 +50,13 @@ export async function handleCheckoutCompleted(
     update: { status: "dirty" },
   });
 
-  await db.cleaningTask.upsert({
+  await db.cleaningHistory.upsert({
     where: { booking_id: payload.booking_id },
     create: {
+      room_status_id: roomStatus.room_status_id,
       booking_id: payload.booking_id,
       hotel_id: booking.hotel_id,
-      physical_room_number: payload.physical_room_number,
+      room_number: payload.physical_room_number,
       status: "pending",
     },
     update: {},

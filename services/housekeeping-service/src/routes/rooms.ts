@@ -2,19 +2,21 @@ import { Router } from "express";
 import { housekeepingController } from "../controllers/housekeeping.controller.js";
 import { validate } from "../middleware/validate.js";
 import {
-  listRoomsQuerySchema,
+  listRoomStatusQuerySchema,
+  roomStatusIdParamSchema,
   setRoomStatusSchema,
 } from "../validators/housekeeping.js";
 
 const router = Router();
 
 router.get(
-  "/",
-  validate(listRoomsQuerySchema, "query"),
-  housekeepingController.listRooms.bind(housekeepingController)
+  "/status",
+  validate(listRoomStatusQuerySchema, "query"),
+  housekeepingController.listRoomStatus.bind(housekeepingController)
 );
 router.put(
-  "/status",
+  "/:id/status",
+  validate(roomStatusIdParamSchema, "params"),
   validate(setRoomStatusSchema),
   housekeepingController.setRoomStatus.bind(housekeepingController)
 );

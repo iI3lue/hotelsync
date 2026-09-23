@@ -21,11 +21,14 @@ export interface BookingRef {
  * Housekeeping lo usa para resolver el hotel del checkout, porque
  * `checkout.completed` trae solo booking_id + habitación física y no se
  * quiso tocar Front Desk para esta versión (evento mínimo, tolerante).
+ * Timeout de 3s por llamada (documento de arquitectura §6.5).
  */
 async function bookingFetch<T>(path: string): Promise<T | null> {
   let res: Response;
   try {
-    res = await fetch(`${BOOKING_API}${path}`);
+    res = await fetch(`${BOOKING_API}${path}`, {
+      signal: AbortSignal.timeout(3000),
+    });
   } catch {
     throw new AppError(
       502,

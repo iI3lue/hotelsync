@@ -43,9 +43,9 @@ export class HousekeepingController {
     }
   }
 
-  async listRooms(req: Request, res: Response, next: NextFunction) {
+  async listRoomStatus(req: Request, res: Response, next: NextFunction) {
     try {
-      const rooms = await housekeepingService.listRooms(req.query as never);
+      const rooms = await housekeepingService.listRoomStatus(req.query as never);
       res.json(rooms);
     } catch (err) {
       next(err);
@@ -54,7 +54,10 @@ export class HousekeepingController {
 
   async setRoomStatus(req: Request, res: Response, next: NextFunction) {
     try {
-      const room = await housekeepingService.setRoomStatus(req.body);
+      const room = await housekeepingService.setRoomStatus(
+        req.params.id as string,
+        req.body
+      );
       res.json(room);
     } catch (err) {
       next(err);

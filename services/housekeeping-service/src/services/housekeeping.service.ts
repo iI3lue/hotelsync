@@ -2,7 +2,7 @@ import prisma from "../lib/prisma.js";
 import { AppError } from "../middleware/error-handler.js";
 import {
   AssignTaskInput,
-  ListRoomsQuery,
+  ListRoomStatusQuery,
   ListTasksQuery,
   SetRoomStatusInput,
 } from "../validators/housekeeping.js";
@@ -16,9 +16,9 @@ const TRANSITIONS: Record<string, string[]> = {
 };
 
 export class HousekeepingService {
-  /** Cola de tareas por hotel y estado (HK-3). */
+  /** Tareas de limpieza por hotel y estado (HK-3, documento §4.6). */
   async listTasks(query: ListTasksQuery) {
-    return prisma.cleaningTask.findMany({
+    return prisma.cleaningHistory.findMany({
       where: {
         hotel_id: query.hotel_id,
         ...(query.status ? { status: query.status } : {}),
@@ -29,8 +29,8 @@ export class HousekeepingService {
 
   /** Asigna una tarea al personal de limpieza (HK-3). */
   async assignTask(id: string, data: AssignTaskInput) {
-    const task = await prisma.cleaningTask.findUnique({
-      where: { task_id: id },
+    const task = await prisma.cleaningHistory.findUnique({
+      where: { history_id: id },
     });
 
     if (!task) {
@@ -44,9 +44,18 @@ export class HousekeepingService {
       );
     }
 
-    return prisma.cleaningTask.update({
-      where: { task_id: id },
-      data: { status: "assigned", assigned_to: data.assigned_to },
+    return prisma.$transaction(async (tx) => {
+      const updated = await tx.cleaningHistory.update({
+        where: { history_id: id },
+        data: { status: "assigned", assigned_to: data.assigned_to },
+      });
+
+      await tx.roomStatus.update({
+        where: { room_status_id: task.room_status_id },
+        data: { assigned_to: data.assigned_to },
+      });
+
+      return updated;
     });
   }
 
@@ -56,12 +65,12 @@ export class HousekeepingService {
   }
 
   /**
-   * Completa la tarea y deja la habitación lista en la misma
+   * Completa la tarea y deja la habitación limpia en la misma
    * transacción (HK-4: ocupación y limpieza sin conflictos).
    */
   async completeTask(id: string) {
-    const task = await prisma.cleaningTask.findUnique({
-      where: { task_id: id },
+    const task = await prisma.cleaningHistory.findUnique({
+      where: { history_id: id },
     });
 
     if (!task) {
@@ -77,59 +86,51 @@ export class HousekeepingService {
     }
 
     return prisma.$transaction(async (tx) => {
-      const updated = await tx.cleaningTask.update({
-        where: { task_id: id },
+      const updated = await tx.cleaningHistory.update({
+        where: { history_id: id },
         data: { status: "done" },
       });
 
-      await tx.room.upsert({
-        where: {
-          hotel_id_room_number: {
-            hotel_id: task.hotel_id,
-            room_number: task.physical_room_number,
-          },
-        },
-        create: {
-          hotel_id: task.hotel_id,
-          room_number: task.physical_room_number,
-          status: "ready",
-        },
-        update: { status: "ready" },
+      await tx.roomStatus.update({
+        where: { room_status_id: task.room_status_id },
+        data: { status: "clean" },
       });
 
       return updated;
     });
   }
 
-  /** Estados de habitación por hotel (HK-1). */
-  async listRooms(query: ListRoomsQuery) {
-    return prisma.room.findMany({
+  /** Estados de habitación por hotel (HK-1, documento §4.6). */
+  async listRoomStatus(query: ListRoomStatusQuery) {
+    return prisma.roomStatus.findMany({
       where: { hotel_id: query.hotel_id },
       orderBy: { room_number: "asc" },
     });
   }
 
   /** Cambio manual de estado (ej. maintenance) (HK-1). */
-  async setRoomStatus(data: SetRoomStatusInput) {
-    return prisma.room.upsert({
-      where: {
-        hotel_id_room_number: {
-          hotel_id: data.hotel_id,
-          room_number: data.room_number,
-        },
-      },
-      create: {
-        hotel_id: data.hotel_id,
-        room_number: data.room_number,
-        status: data.status,
-      },
-      update: { status: data.status },
+  async setRoomStatus(id: string, data: SetRoomStatusInput) {
+    const existing = await prisma.roomStatus.findUnique({
+      where: { room_status_id: id },
+    });
+
+    if (!existing) {
+      throw new AppError(
+        404,
+        `Room status with id ${id} not found`,
+        "Not Found"
+      );
+    }
+
+    return prisma.roomStatus.update({
+      where: { room_status_id: id },
+      data: { status: data.status },
     });
   }
 
   private async transitionTask(id: string, to: string) {
-    const task = await prisma.cleaningTask.findUnique({
-      where: { task_id: id },
+    const task = await prisma.cleaningHistory.findUnique({
+      where: { history_id: id },
     });
 
     if (!task) {
@@ -143,19 +144,18 @@ export class HousekeepingService {
       );
     }
 
-    if (to === "in_progress") {
-      await prisma.room.updateMany({
-        where: {
-          hotel_id: task.hotel_id,
-          room_number: task.physical_room_number,
-        },
-        data: { status: "cleaning" },
-      });
-    }
+    return prisma.$transaction(async (tx) => {
+      if (to === "in_progress") {
+        await tx.roomStatus.update({
+          where: { room_status_id: task.room_status_id },
+          data: { status: "cleaning" },
+        });
+      }
 
-    return prisma.cleaningTask.update({
-      where: { task_id: id },
-      data: { status: to },
+      return tx.cleaningHistory.update({
+        where: { history_id: id },
+        data: { status: to },
+      });
     });
   }
 }

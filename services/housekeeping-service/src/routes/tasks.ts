@@ -14,18 +14,18 @@ router.get(
   validate(listTasksQuerySchema, "query"),
   housekeepingController.listTasks.bind(housekeepingController)
 );
-router.post(
+router.put(
   "/:id/assign",
   validate(taskIdParamSchema, "params"),
   validate(assignTaskSchema),
   housekeepingController.assignTask.bind(housekeepingController)
 );
-router.post(
+router.put(
   "/:id/start",
   validate(taskIdParamSchema, "params"),
   housekeepingController.startTask.bind(housekeepingController)
 );
-router.post(
+router.put(
   "/:id/complete",
   validate(taskIdParamSchema, "params"),
   housekeepingController.completeTask.bind(housekeepingController)

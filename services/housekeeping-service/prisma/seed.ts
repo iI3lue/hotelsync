@@ -17,9 +17,9 @@ async function main() {
 
   if (hotelId && roomNumbers.length > 0) {
     for (const roomNumber of roomNumbers) {
-      await prisma.room.upsert({
+      await prisma.roomStatus.upsert({
         where: { hotel_id_room_number: { hotel_id: hotelId, room_number: roomNumber } },
-        create: { hotel_id: hotelId, room_number: roomNumber, status: "ready" },
+        create: { hotel_id: hotelId, room_number: roomNumber, status: "clean" },
         update: {},
       });
     }

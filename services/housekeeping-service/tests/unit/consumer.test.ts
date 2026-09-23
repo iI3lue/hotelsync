@@ -3,11 +3,12 @@ import * as bookingClient from "../../src/lib/booking-client.js";
 
 const BOOKING_ID = "a1b2c3d4-e5f6-4890-abcd-ef1234567890";
 const HOTEL_ID = "c1b2c3d4-e5f6-4890-abcd-ef1234567890";
+const ROOM_STATUS_ID = "e1b2c3d4-e5f6-4890-abcd-ef1234567890";
 
 function mockDb() {
   return {
-    room: { upsert: jest.fn(), updateMany: jest.fn() },
-    cleaningTask: { upsert: jest.fn() },
+    roomStatus: { upsert: jest.fn().mockResolvedValue({ room_status_id: ROOM_STATUS_ID }) },
+    cleaningHistory: { upsert: jest.fn() },
   } as any;
 }
 
@@ -40,19 +41,20 @@ describe("handleHousekeepingEvent", () => {
       physical_room_number: "101",
     });
 
-    expect(db.room.upsert).toHaveBeenCalledWith({
+    expect(db.roomStatus.upsert).toHaveBeenCalledWith({
       where: {
         hotel_id_room_number: { hotel_id: HOTEL_ID, room_number: "101" },
       },
       create: { hotel_id: HOTEL_ID, room_number: "101", status: "dirty" },
       update: { status: "dirty" },
     });
-    expect(db.cleaningTask.upsert).toHaveBeenCalledWith({
+    expect(db.cleaningHistory.upsert).toHaveBeenCalledWith({
       where: { booking_id: BOOKING_ID },
       create: {
+        room_status_id: ROOM_STATUS_ID,
         booking_id: BOOKING_ID,
         hotel_id: HOTEL_ID,
-        physical_room_number: "101",
+        room_number: "101",
         status: "pending",
       },
       update: {},
@@ -73,8 +75,8 @@ describe("handleHousekeepingEvent", () => {
       })
     ).rejects.toThrow();
 
-    expect(db.room.upsert).not.toHaveBeenCalled();
-    expect(db.cleaningTask.upsert).not.toHaveBeenCalled();
+    expect(db.roomStatus.upsert).not.toHaveBeenCalled();
+    expect(db.cleaningHistory.upsert).not.toHaveBeenCalled();
   });
 
   it("should ignore unknown routing keys", async () => {
@@ -85,7 +87,7 @@ describe("handleHousekeepingEvent", () => {
       physical_room_number: "101",
     } as any);
 
-    expect(db.room.upsert).not.toHaveBeenCalled();
-    expect(db.cleaningTask.upsert).not.toHaveBeenCalled();
+    expect(db.roomStatus.upsert).not.toHaveBeenCalled();
+    expect(db.cleaningHistory.upsert).not.toHaveBeenCalled();
   });
 });
