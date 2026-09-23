@@ -58,9 +58,13 @@ export class BillingService {
 
   /**
    * Acumula un cargo de servicio en el folio abierto (BL-1:
-   * minibar, spa, restaurante, otros).
+   * minibar, spa, restaurante, otros). Mantiene `folios.total`
+   * sincronizado (documento de arquitectura §5.7).
    */
-  async addCharge(folioId: string, data: CreateChargeInput) {
+  async addCharge(
+    folioId: string,
+    data: Omit<CreateChargeInput, "folio_id">
+  ) {
     const folio = await prisma.folio.findUnique({
       where: { folio_id: folioId },
     });
@@ -80,13 +84,22 @@ export class BillingService {
       );
     }
 
-    return prisma.charge.create({
-      data: {
-        folio_id: folioId,
-        description: data.description,
-        amount: data.amount,
-        category: data.category ?? "other",
-      },
+    return prisma.$transaction(async (tx) => {
+      const charge = await tx.charge.create({
+        data: {
+          folio_id: folioId,
+          concept: data.concept,
+          amount: data.amount,
+          category: data.category ?? "other",
+        },
+      });
+
+      await tx.folio.update({
+        where: { folio_id: folioId },
+        data: { total: round2(Number(folio.total) + data.amount) },
+      });
+
+      return charge;
     });
   }
 
@@ -113,10 +126,11 @@ export class BillingService {
         hotel_id: booking.hotel_id,
         guest_id: booking.guest_id,
         currency: DEFAULT_CURRENCY,
+        total: Number(booking.total_amount),
         status: "open",
         charges: {
           create: {
-            description: `Estancia ${booking.check_in} → ${booking.check_out}`,
+            concept: `Estancia ${booking.check_in} → ${booking.check_out}`,
             amount: Number(booking.total_amount),
             category: "room",
           },
@@ -129,7 +143,7 @@ export class BillingService {
   /**
    * Cierra el folio y emite la factura final (BL-2, BL-3, BL-4).
    * Idempotente: si ya está cerrado devuelve la factura existente.
-   * Cierre + factura + evento `billing.invoice.issued` en una sola
+   * Cierre + factura + evento `folio.closed` en una sola
    * transacción (outbox transaccional, rollback conjunto).
    */
   async closeFolio(folioId: string, _data: CloseFolioInput = {}) {
@@ -173,7 +187,7 @@ export class BillingService {
         },
       });
 
-      await enqueueOutboxEvent(tx, "billing.invoice.issued", {
+      await enqueueOutboxEvent(tx, "folio.closed", {
         invoice_id: invoice.invoice_id,
         folio_id: folioId,
         booking_id: folio.booking_id,
@@ -208,6 +222,15 @@ export class BillingService {
     }
 
     return this.closeFolio(folio.folio_id);
+  }
+
+  /** Folios de un huésped (documento de arquitectura §4.7). */
+  async listFoliosByGuest(guestId: string) {
+    return prisma.folio.findMany({
+      where: { guest_id: guestId },
+      include: { charges: true },
+      orderBy: { created_at: "desc" },
+    });
   }
 
   /** Facturas por hotel. */

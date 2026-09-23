@@ -14,11 +14,14 @@ export interface HotelRef {
 /**
  * Cliente HTTP hacia Property Service (BL-4: país del hotel para la
  * normativa fiscal aplicable a la factura). Sin FK entre bases.
+ * Timeout de 3s por llamada (documento de arquitectura §6.5).
  */
 export async function fetchHotel(id: string): Promise<HotelRef | null> {
   let res: Response;
   try {
-    res = await fetch(`${PROPERTY_API}/hotels/${id}`);
+    res = await fetch(`${PROPERTY_API}/hotels/${id}`, {
+      signal: AbortSignal.timeout(3000),
+    });
   } catch {
     throw new AppError(
       502,

@@ -21,6 +21,7 @@ model Folio {
   hotel_id   String   @db.Uuid
   guest_id   String   @db.Uuid
   currency   String   @default("COP") @db.VarChar(10)
+  total      Decimal  @default(0) @db.Decimal(12, 2)
   status     String   @default("open") @db.VarChar(20)
   created_at DateTime @default(now()) @db.Timestamptz(6)
   updated_at DateTime @updatedAt @db.Timestamptz(6)
@@ -34,12 +35,12 @@ model Folio {
 }
 
 model Charge {
-  charge_id   String   @id @default(uuid()) @db.Uuid
-  folio_id    String   @db.Uuid
-  description String   @db.VarChar(200)
-  amount      Decimal  @db.Decimal(12, 2)
-  category    String   @default("other") @db.VarChar(20)
-  created_at  DateTime @default(now()) @db.Timestamptz(6)
+  charge_id String   @id @default(uuid()) @db.Uuid
+  folio_id  String   @db.Uuid
+  concept   String   @db.VarChar(200)
+  amount    Decimal  @db.Decimal(12, 2)
+  category  String   @default("other") @db.VarChar(20)
+  added_at  DateTime @default(now()) @db.Timestamptz(6)
 
   folio Folio @relation(fields: [folio_id], references: [folio_id], onDelete: Cascade)
 

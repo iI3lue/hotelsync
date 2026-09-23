@@ -599,8 +599,8 @@ Content-Type: application/json
 }
 ```
 
-Setea `checked_out_at` y emite `checkout.completed` (lo consumirán
-Housekeeping y Billing en Fase 2).
+Setea `checked_out_at` y emite `checkout.completed` (lo consumen
+Housekeeping y Billing) y `booking.completed` (lo consumirá Loyalty).
 
 **Response (200):** Objeto `room_assignment` cerrado.
 
@@ -652,17 +652,17 @@ GET /health
 
 ```
 GET /v1/tasks?hotel_id=<uuid>&status=<pending|assigned|in_progress|done|cancelled>
-POST /v1/tasks/:id/assign
-POST /v1/tasks/:id/start
-POST /v1/tasks/:id/complete
+PUT /v1/tasks/:id/assign
+PUT /v1/tasks/:id/start
+PUT /v1/tasks/:id/complete
 ```
 
-**POST /v1/tasks/:id/assign body:**
+**PUT /v1/tasks/:id/assign body:**
 ```json
 { "assigned_to": "Lucía" }
 ```
 
-Completar la tarea deja la habitación en `ready` en la misma transacción
+Completar la tarea deja la habitación en `clean` en la misma transacción
 (HK-4). Transiciones válidas: `pending → assigned|in_progress|cancelled`,
 `assigned → in_progress|cancelled`, `in_progress → done|cancelled`.
 
@@ -671,20 +671,16 @@ Completar la tarea deja la habitación en `ready` en la misma transacción
 ### Habitaciones
 
 ```
-GET /v1/rooms?hotel_id=<uuid>
-PUT /v1/rooms/status
+GET /v1/rooms/status?hotel_id=<uuid>
+PUT /v1/rooms/:id/status
 ```
 
 **PUT body:**
 ```json
-{
-  "hotel_id": "c1b2c3d4-e5f6-4890-abcd-ef1234567890",
-  "room_number": "101",
-  "status": "dirty" | "cleaning" | "ready" | "maintenance"
-}
+{ "status": "dirty" | "cleaning" | "clean" | "maintenance" }
 ```
 
-**Response (200):** Objeto `room` con su estado (HK-1).
+**Response (200):** Objeto `room_status` con su estado (HK-1).
 
 ---
 
@@ -692,7 +688,7 @@ PUT /v1/rooms/status
 
 Consume `booking.created` (abre el folio con el cargo de habitación) y
 `checkout.completed` (cierra el folio y emite la factura) de RabbitMQ
-(cola `billing.folio`). Publica `billing.invoice.issued` vía outbox
+(cola `billing.folio`). Publica `folio.closed` vía outbox
 transaccional. Requiere `BOOKING_SERVICE_URL` y `PROPERTY_SERVICE_URL`
 (país del hotel para la tasa fiscal, BL-4).
 
@@ -714,14 +710,16 @@ GET /health
 ```
 GET /v1/folios?hotel_id=<uuid>&status=<open|closed>
 GET /v1/folios/:id
-POST /v1/folios/:id/charges
+GET /v1/folios/guest/:id
+POST /v1/charges
 POST /v1/folios/:id/close
 ```
 
-**POST /v1/folios/:id/charges body:**
+**POST /v1/charges body:**
 ```json
 {
-  "description": "Minibar",
+  "folio_id": "f1c2c3d4-e5f6-4890-abcd-ef1234567890",
+  "concept": "Minibar",
   "amount": 15000,
   "category": "minibar" | "spa" | "restaurant" | "room" | "other"
 }

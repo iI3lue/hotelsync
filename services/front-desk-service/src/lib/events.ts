@@ -1,11 +1,12 @@
 /**
- * Event stub — Fase 1 MVP.
+ * Eventos publicados por Front Desk (documento de arquitectura §4.5).
  *
- * `checkout.completed` se publica como log estructurado con trazabilidad por
- * `booking_id`. En Fase 2 lo consumen Housekeeping (tarea de limpieza) y
- * Billing (cierre de folio) vía RabbitMQ, sin cambiar esta firma.
+ * `checkout.completed` lo consumen Housekeeping (tarea de limpieza) y
+ * Billing (cierre de folio) vía RabbitMQ.
+ * `booking.completed` lo consumirá Loyalty (acumulación de puntos) y se
+ * publica en la misma transacción del check-out.
  */
-export type FrontDeskEventType = "checkout.completed";
+export type FrontDeskEventType = "checkout.completed" | "booking.completed";
 
 export function publishEvent(
   type: FrontDeskEventType,

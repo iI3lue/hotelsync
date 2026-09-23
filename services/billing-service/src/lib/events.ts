@@ -1,9 +1,9 @@
 /**
  * Eventos publicados por Billing (outbox transaccional + dispatcher).
- * `billing.invoice.issued` lo consumen a futuro Loyalty/Analytics;
- * Front Desk ya lo ignora explícitamente (ver su consumer.test).
+ * `folio.closed` (nombre del documento de arquitectura §4.7) lo consumen
+ * a futuro Loyalty/Analytics; Front Desk ya lo ignora explícitamente.
  */
-export type BillingEventType = "billing.invoice.issued";
+export type BillingEventType = "folio.closed";
 
 export function publishEvent(
   type: BillingEventType,

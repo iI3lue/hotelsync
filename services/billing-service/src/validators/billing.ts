@@ -17,9 +17,14 @@ export const folioIdParamSchema = z.object({
   id: z.string().uuid(),
 });
 
+export const guestIdParamSchema = z.object({
+  id: z.string().uuid(),
+});
+
 export const createChargeSchema = z.object({
-  description: z.string().min(1).max(200),
-  amount: z.number().positive(),
+  folio_id: z.string().uuid(),
+  concept: z.string().min(1).max(200),
+  amount: z.number().nonnegative(),
   category: z.enum(CHARGE_CATEGORIES).optional(),
 });
 

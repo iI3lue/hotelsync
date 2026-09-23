@@ -22,11 +22,25 @@ export class BillingController {
 
   async addCharge(req: Request, res: Response, next: NextFunction) {
     try {
-      const charge = await billingService.addCharge(
-        req.params.id as string,
-        req.body
+      const { folio_id, ...charge } = req.body as {
+        folio_id: string;
+        concept: string;
+        amount: number;
+        category?: "room" | "minibar" | "spa" | "restaurant" | "other";
+      };
+      const created = await billingService.addCharge(folio_id, charge);
+      res.status(201).json(created);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async listFoliosByGuest(req: Request, res: Response, next: NextFunction) {
+    try {
+      const folios = await billingService.listFoliosByGuest(
+        req.params.id as string
       );
-      res.status(201).json(charge);
+      res.json(folios);
     } catch (err) {
       next(err);
     }

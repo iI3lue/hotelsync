@@ -90,9 +90,10 @@ export class FrontDeskService {
       );
     }
 
-    // Outbox transaccional: cierre + evento se confirman juntos.
-    // El dispatcher publica `checkout.completed` a RabbitMQ con confirm
-    // (lo consumen Housekeeping y Billing, fuente §6).
+    // Outbox transaccional: cierre + eventos se confirman juntos.
+    // El dispatcher publica `checkout.completed` (Housekeeping, Billing) y
+    // `booking.completed` (Loyalty a futuro) a RabbitMQ con confirm
+    // (documento de arquitectura §4.5, tabla de eventos §5.11).
     const closed = await prisma.$transaction(async (tx) => {
       const updated = await tx.roomAssignment.update({
         where: { booking_id: data.booking_id },
@@ -100,6 +101,11 @@ export class FrontDeskService {
       });
 
       await enqueueOutboxEvent(tx, "checkout.completed", {
+        booking_id: updated.booking_id,
+        physical_room_number: updated.physical_room_number,
+      });
+
+      await enqueueOutboxEvent(tx, "booking.completed", {
         booking_id: updated.booking_id,
         physical_room_number: updated.physical_room_number,
       });

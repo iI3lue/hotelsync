@@ -184,11 +184,11 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 |--------|------|-------------|
 | GET | `/health` | Health check |
 | GET | `/v1/tasks?hotel_id=&status=` | Cola de tareas (vía `checkout.completed`) |
-| POST | `/v1/tasks/:id/assign` | Asignar al personal (`assigned_to`) |
-| POST | `/v1/tasks/:id/start` | Pasar a en limpieza |
-| POST | `/v1/tasks/:id/complete` | Completar (habitación a `ready`) |
-| GET | `/v1/rooms?hotel_id=` | Estados de habitación |
-| PUT | `/v1/rooms/status` | Estado manual (`dirty\|cleaning\|ready\|maintenance`) |
+| PUT | `/v1/tasks/:id/assign` | Asignar al personal (`assigned_to`) |
+| PUT | `/v1/tasks/:id/start` | Pasar a en limpieza |
+| PUT | `/v1/tasks/:id/complete` | Completar (habitación a `clean`) |
+| GET | `/v1/rooms/status?hotel_id=` | Estados de habitación |
+| PUT | `/v1/rooms/:id/status` | Estado manual (`dirty\|cleaning\|clean\|maintenance`) |
 
 ### Billing Service (puerto 3007)
 
@@ -197,7 +197,8 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 | GET | `/health` | Health check |
 | GET | `/v1/folios?hotel_id=&status=` | Folios abiertos/cerrados |
 | GET | `/v1/folios/:id` | Folio con cargos y factura |
-| POST | `/v1/folios/:id/charges` | Agregar cargo (minibar, spa, restaurante) |
+| GET | `/v1/folios/guest/:id` | Folios de un huésped |
+| POST | `/v1/charges` | Agregar cargo (minibar, spa, restaurante) |
 | POST | `/v1/folios/:id/close` | Cerrar y emitir factura (idempotente) |
 | GET | `/v1/invoices?hotel_id=` | Facturas del hotel |
 | GET | `/v1/invoices/:id` | Factura con folio y cargos |
@@ -266,7 +267,7 @@ Front Desk proyecta el read model `arrivals` (cola `front-desk.arrivals`,
 ack manual, upsert idempotente) y publica `checkout.completed` también vía
 outbox. Housekeeping consume `checkout.completed` (cola `housekeeping.tasks`:
 habitación a sucia + tarea automática) y Billing consume `booking.created`
-(apertura de folio) y `checkout.completed` (cierre + `billing.invoice.issued`
+(apertura de folio) y `checkout.completed` (cierre + `folio.closed`
 vía outbox propio). Sin `RABBITMQ_URL` los servicios operan igual pero los
 eventos quedan `pending` en el outbox.
 
@@ -308,15 +309,15 @@ eventos quedan `pending` en el outbox.
 
 | Tabla | Campos principales | Constraints |
 |-------|-------------------|-------------|
-| `rooms` | room_id (PK), hotel_id, room_number, status (`dirty\|cleaning\|ready\|maintenance`) | @@unique(hotel_id, room_number) |
-| `cleaning_tasks` | task_id (PK), booking_id (UNIQUE), hotel_id, physical_room_number, status, assigned_to | Idempotente por booking_id |
+| `room_status` | room_status_id (PK), hotel_id, room_number, status (`dirty\|cleaning\|clean\|maintenance`), assigned_to | @@unique(hotel_id, room_number) |
+| `cleaning_history` | history_id (PK), room_status_id (FK), booking_id (UNIQUE), hotel_id, room_number, status, assigned_to | Idempotente por booking_id |
 
 #### Billing Service
 
 | Tabla | Campos principales | Constraints |
 |-------|-------------------|-------------|
-| `folios` | folio_id (PK), booking_id (UNIQUE), hotel_id, guest_id, currency, status (`open\|closed`) | Idempotente por booking_id |
-| `charges` | charge_id (PK), folio_id (FK), description, amount, category | @@index(folio_id) |
+| `folios` | folio_id (PK), booking_id (UNIQUE), hotel_id, guest_id, currency, total, status (`open\|closed`) | Idempotente por booking_id |
+| `charges` | charge_id (PK), folio_id (FK), concept, amount, category, added_at | @@index(folio_id) |
 | `invoices` | invoice_id (PK), folio_id (UNIQUE), invoice_number (UNIQUE), subtotal, tax_rate, tax_amount, total, currency, country | Una factura por folio |
 | `event_outbox` | event_id (PK), event_type, payload (JSONB), status, attempts, created_at, sent_at | @@index(status, created_at) |
 

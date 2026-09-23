@@ -18,11 +18,14 @@ export interface BookingRef {
 /**
  * Cliente HTTP hacia Booking Service (comunicación síncrona REST, fuente §6).
  * Sin FK entre bases: la referencia cruzada es solo el UUID de la reserva.
+ * Timeout de 3s por llamada (documento de arquitectura §6.5).
  */
 async function bookingFetch<T>(path: string): Promise<T | null> {
   let res: Response;
   try {
-    res = await fetch(`${BOOKING_API}${path}`);
+    res = await fetch(`${BOOKING_API}${path}`, {
+      signal: AbortSignal.timeout(3000),
+    });
   } catch {
     throw new AppError(
       502,

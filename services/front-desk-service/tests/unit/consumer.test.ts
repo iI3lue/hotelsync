@@ -70,7 +70,7 @@ describe("handleBookingEvent", () => {
   it("should ignore unknown routing keys", async () => {
     const db = mockDb();
 
-    await handleBookingEvent(db, "billing.invoice.issued", {
+    await handleBookingEvent(db, "folio.closed", {
       booking_id: BOOKING_ID,
     } as any);
 

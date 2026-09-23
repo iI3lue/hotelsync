@@ -155,7 +155,7 @@ describe("FrontDeskService", () => {
   });
 
   describe("checkOut", () => {
-    it("should close an active check-in and emit checkout.completed", async () => {
+    it("should close an active check-in and emit checkout.completed + booking.completed", async () => {
       mockPrisma.roomAssignment.findUnique.mockResolvedValue({
         booking_id: BOOKING_ID,
         physical_room_number: "101",
@@ -175,9 +175,19 @@ describe("FrontDeskService", () => {
       });
       expect(result.checked_out_at).toBeTruthy();
       expect(mockPrisma.$transaction).toHaveBeenCalled();
-      expect(mockPrisma.eventOutbox.create).toHaveBeenCalledWith({
+      expect(mockPrisma.eventOutbox.create).toHaveBeenCalledTimes(2);
+      expect(mockPrisma.eventOutbox.create).toHaveBeenNthCalledWith(1, {
         data: {
           event_type: "checkout.completed",
+          payload: {
+            booking_id: BOOKING_ID,
+            physical_room_number: "101",
+          },
+        },
+      });
+      expect(mockPrisma.eventOutbox.create).toHaveBeenNthCalledWith(2, {
+        data: {
+          event_type: "booking.completed",
           payload: {
             booking_id: BOOKING_ID,
             physical_room_number: "101",
