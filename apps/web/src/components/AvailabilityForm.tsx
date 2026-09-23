@@ -4,6 +4,7 @@ import { useState, useTransition } from "react";
 import useSWR from "swr";
 import type { Availability, RoomType } from "@/lib/api";
 import { formatDate } from "@/lib/api";
+import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 
 interface AvailabilityFormProps {
   hotelId: string;
@@ -102,22 +103,23 @@ export default function AvailabilityForm({
           )}
         </div>
         <div>
-          <label htmlFor="availability-date" className={labelClass}>
+          <span id="availability-date-label" className={labelClass}>
             Fecha
-          </label>
-          <input
-            id="availability-date"
-            name="date"
-            type="date"
-            value={date}
-            onChange={(e) => setDate(e.target.value)}
-            className={`${inputClass} dark:[color-scheme:dark]`}
-            required
+          </span>
+          <AvailabilityCalendar
+            roomTypeId={roomId || undefined}
+            selected={date || undefined}
+            onSelect={setDate}
           />
+          <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+            {roomId
+              ? "Los días en verde tienen habitaciones libres."
+              : "Elegí un tipo de habitación para ver los días libres."}
+          </p>
         </div>
         <button
           type="submit"
-          disabled={isPending || isLoading}
+          disabled={isPending || isLoading || !roomId || !date}
           className="rounded bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 touch-manipulation disabled:opacity-50"
         >
           {isPending || isLoading ? "Consultando…" : "Consultar disponibilidad"}

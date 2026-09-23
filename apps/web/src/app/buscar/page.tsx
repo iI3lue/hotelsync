@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { fetchHotels, filterHotels } from "@/lib/api";
+import { fetchHotels, filterHotels, minRate } from "@/lib/api";
 import EmptyState from "@/components/EmptyState";
 import HotelCard from "@/components/HotelCard";
 import SearchBar from "@/components/SearchBar";
@@ -13,6 +13,7 @@ interface BuscarParams {
   guests?: string;
   amenity?: string;
   minCap?: string;
+  sort?: string;
 }
 
 export async function generateMetadata({
@@ -40,6 +41,16 @@ function toggleAmenityUrl(params: BuscarParams, amenity: string): string {
   return query ? `/buscar?${query}` : "/buscar";
 }
 
+function sortUrl(params: BuscarParams, sort: string): string {
+  const next = new URLSearchParams();
+  for (const [key, value] of Object.entries(params)) {
+    if (value && key !== "sort") next.set(key, value);
+  }
+  if (sort !== "relevance") next.set("sort", sort);
+  const query = next.toString();
+  return query ? `/buscar?${query}` : "/buscar";
+}
+
 const QUICK_FILTERS = ["wifi", "piscina", "desayuno", "vista al mar"];
 
 async function BuscarResults({ params }: { params: BuscarParams }) {
@@ -63,12 +74,20 @@ async function BuscarResults({ params }: { params: BuscarParams }) {
   });
 
   const guests = params.guests ? Number(params.guests) : undefined;
-  const visible =
+  const guestFiltered =
     guests && Number.isFinite(guests) && guests > 0
       ? filtered.filter((h) =>
           (h.roomTypes ?? []).some((r) => r.capacity >= guests)
         )
       : filtered;
+
+  const visible = [...guestFiltered].sort((a, b) => {
+    if (params.sort === "price-asc") return (minRate(a) ?? Infinity) - (minRate(b) ?? Infinity);
+    if (params.sort === "price-desc") return (minRate(b) ?? -Infinity) - (minRate(a) ?? -Infinity);
+    return 0;
+  });
+
+  const sort = params.sort ?? "relevance";
 
   return (
     <div>
@@ -110,6 +129,28 @@ async function BuscarResults({ params }: { params: BuscarParams }) {
         {params.from ? ` · desde ${params.from}` : ""}
         {params.to ? ` · hasta ${params.to}` : ""}
       </p>
+
+      <div className="mb-4 flex flex-wrap items-center gap-2" aria-label="Ordenar">
+        <span className="text-sm text-gray-600 dark:text-gray-300">Ordenar:</span>
+        {[
+          { value: "relevance", label: "Relevancia" },
+          { value: "price-asc", label: "Precio: menor a mayor" },
+          { value: "price-desc", label: "Precio: mayor a menor" },
+        ].map((o) => (
+          <a
+            key={o.value}
+            href={sortUrl(params, o.value)}
+            aria-pressed={sort === o.value}
+            className={`rounded-full border px-3 py-1.5 text-sm font-medium transition-colors touch-manipulation ${
+              sort === o.value
+                ? "border-blue-600 bg-blue-600 text-white"
+                : "border-gray-300 bg-white text-gray-700 hover:bg-gray-100 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200"
+            }`}
+          >
+            {o.label}
+          </a>
+        ))}
+      </div>
 
       {visible.length === 0 ? (
         <EmptyState

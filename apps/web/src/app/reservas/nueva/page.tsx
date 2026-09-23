@@ -1,5 +1,7 @@
 import type { Metadata } from "next";
 import BookingForm from "@/components/BookingForm";
+import NuevaReservaSetup from "@/components/NuevaReservaSetup";
+import { fetchRoomTypes } from "@/lib/api";
 
 export const metadata: Metadata = {
   title: "Nueva reserva en HotelSync",
@@ -13,6 +15,15 @@ export default async function NuevaReservaPage({
 }) {
   const { hotel, room_type_id, date } = await searchParams;
   const ready = Boolean(hotel && room_type_id && date);
+
+  let roomTypes: Awaited<ReturnType<typeof fetchRoomTypes>> = [];
+  if (hotel && !ready) {
+    try {
+      roomTypes = await fetchRoomTypes(hotel);
+    } catch {
+      roomTypes = [];
+    }
+  }
 
   return (
     <div>
@@ -30,14 +41,20 @@ export default async function NuevaReservaPage({
       </p>
       {ready ? (
         <BookingForm hotelId={hotel!} roomTypeId={room_type_id!} date={date!} />
+      ) : hotel ? (
+        <NuevaReservaSetup
+          hotelId={hotel}
+          roomTypes={roomTypes}
+          initialRoomTypeId={room_type_id ?? ""}
+          initialDate={date ?? ""}
+        />
       ) : (
         <div
           role="status"
           className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-800"
         >
           <p className="text-gray-600 dark:text-gray-300">
-            Falta el hotel, la habitación o la fecha. Empezá eligiendo
-            disponibilidad desde el{" "}
+            Falta el hotel. Empezá eligiendo disponibilidad desde el{" "}
             <a
               href="/"
               className="text-blue-600 hover:underline dark:text-blue-400"

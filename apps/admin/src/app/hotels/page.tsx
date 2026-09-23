@@ -110,6 +110,12 @@ async function HotelsTable({ query }: { query?: string }) {
                   >
                     Inventario
                   </Link>
+                  <Link
+                    href={`/recepcion?hotel_id=${hotel.hotel_id}`}
+                    className="rounded px-2 py-1 text-orange-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 dark:text-orange-400"
+                  >
+                    Recepción
+                  </Link>
                   <ConfirmAction
                     triggerLabel="Eliminar"
                     title={`Eliminar “${hotel.name}”`}

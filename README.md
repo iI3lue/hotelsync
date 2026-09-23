@@ -116,6 +116,9 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 | Rate & Availability | `rate-availability-db` | `rate_availability_db` |
 
 > Alternativa sin compose: `npx prisma studio` dentro de cada servicio (usa su `.env`).
+> Si Studio falla en Windows con `Unable to get DMMF ... spawn UNKNOWN`, es instalación corrupta
+> del CLI: cerrar los `prisma studio` colgados, borrar `node_modules/prisma` y `node_modules/@prisma`,
+> y correr `npm install` en la raíz (restaura exacto según el lockfile). Verificado con Prisma 6.19.3 + Node 24.
 
 ## Endpoints API
 

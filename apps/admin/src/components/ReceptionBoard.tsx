@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { BookingRef } from "@/lib/api";
+import { useRoomNames } from "@/lib/use-room-names";
 
 interface ReceptionBoardProps {
   hotelId: string;
@@ -31,6 +32,7 @@ export default function ReceptionBoard({ hotelId, date }: ReceptionBoardProps) {
   const [rooms, setRooms] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const roomNames = useRoomNames(hotelId);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,6 +72,7 @@ export default function ReceptionBoard({ hotelId, date }: ReceptionBoardProps) {
         physical_room_number: room,
       });
       setNotice(`Check-in OK: reserva ${bookingId.slice(0, 8)}… en habitación ${room}`);
+      await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo hacer el check-in");
     } finally {
@@ -84,6 +87,7 @@ export default function ReceptionBoard({ hotelId, date }: ReceptionBoardProps) {
     try {
       await postJson("/api/front-desk/check-out", { booking_id: bookingId });
       setNotice(`Check-out OK: reserva ${bookingId.slice(0, 8)}… (checkout.completed emitido)`);
+      await load();
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo hacer el check-out");
     } finally {
@@ -115,10 +119,27 @@ export default function ReceptionBoard({ hotelId, date }: ReceptionBoardProps) {
       </div>
 
       {!arrivals || arrivals.length === 0 ? (
-        <p className="text-gray-500 dark:text-gray-400">
-          No hay llegadas confirmadas para esta fecha.
-        </p>
+        <div className="rounded-lg bg-white p-6 text-center shadow dark:bg-gray-800">
+          <p className="font-medium text-gray-700 dark:text-gray-200">
+            No hay llegadas confirmadas para esta fecha.
+          </p>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            Este tablero solo muestra confirmed del read model de Front Desk. Mirá la
+            pestaña Reservas para ver las pending recién creadas en Booking.
+          </p>
+          <button
+            type="button"
+            onClick={load}
+            className="mt-4 rounded border border-gray-300 px-3 py-2 text-sm font-medium transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 touch-manipulation dark:border-gray-600 dark:hover:bg-gray-700"
+          >
+            Reintentar
+          </button>
+        </div>
       ) : (
+        <div>
+          <p role="status" className="mb-3 text-sm text-gray-600 tabular-nums dark:text-gray-300">
+            {arrivals.length === 1 ? "1 llegada confirmada" : `${arrivals.length} llegadas confirmadas`}
+          </p>
         <ul className="space-y-4">
           {arrivals.map((b) => (
             <li
@@ -128,6 +149,9 @@ export default function ReceptionBoard({ hotelId, date }: ReceptionBoardProps) {
               <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 break-words">
                 <span className="font-mono text-xs text-gray-500 dark:text-gray-400">
                   {b.booking_id.slice(0, 8)}…
+                </span>
+                <span className="text-sm font-medium">
+                  {roomNames[b.room_type_id] ?? "Habitación"}
                 </span>
                 <span className="text-sm">
                   {b.check_in} → {b.check_out}
@@ -170,6 +194,7 @@ export default function ReceptionBoard({ hotelId, date }: ReceptionBoardProps) {
             </li>
           ))}
         </ul>
+        </div>
       )}
     </div>
   );

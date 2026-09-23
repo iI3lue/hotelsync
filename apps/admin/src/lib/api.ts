@@ -200,3 +200,18 @@ export async function fetchIncidents(bookingId?: string): Promise<GuestIncident[
 export async function fetchBookingById(id: string): Promise<BookingRef> {
   return apiFetch<BookingRef>(`${BOOKING_API}/bookings/${id}`);
 }
+
+export interface BookingsQuery {
+  hotel_id?: string;
+  status?: "pending" | "confirmed" | "cancelled";
+  date?: string;
+}
+
+export async function fetchBookings(query: BookingsQuery = {}): Promise<BookingRef[]> {
+  const params = new URLSearchParams();
+  if (query.hotel_id) params.set("hotel_id", query.hotel_id);
+  if (query.status) params.set("status", query.status);
+  if (query.date) params.set("date", query.date);
+  const qs = params.toString();
+  return apiFetch<BookingRef[]>(`${BOOKING_API}/bookings${qs ? `?${qs}` : ""}`);
+}

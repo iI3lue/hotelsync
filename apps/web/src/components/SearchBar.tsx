@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import DatePickerButton from "@/components/DatePickerButton";
 
 interface SearchBarProps {
   initialCity?: string;
@@ -61,33 +62,22 @@ export default function SearchBar({
           className={fieldClass}
         />
       </div>
-      <div className="min-w-0">
-        <label htmlFor="search-from" className={labelClass}>
-          Llegada
-        </label>
-        <input
-          id="search-from"
-          name="from"
-          type="date"
-          value={from}
-          onChange={(e) => setFrom(e.target.value)}
-          className={`${fieldClass} dark:[color-scheme:dark]`}
-        />
-      </div>
-      <div className="min-w-0">
-        <label htmlFor="search-to" className={labelClass}>
-          Salida
-        </label>
-        <input
-          id="search-to"
-          name="to"
-          type="date"
-          value={to}
-          min={from || undefined}
-          onChange={(e) => setTo(e.target.value)}
-          className={`${fieldClass} dark:[color-scheme:dark]`}
-        />
-      </div>
+      <DatePickerButton
+        label="Llegada"
+        id="search-from"
+        value={from}
+        onChange={(iso) => {
+          setFrom(iso);
+          if (to && to <= iso) setTo("");
+        }}
+      />
+      <DatePickerButton
+        label="Salida"
+        id="search-to"
+        value={to}
+        minDate={from || undefined}
+        onChange={setTo}
+      />
       <div className="min-w-0">
         <label htmlFor="search-guests" className={labelClass}>
           Huéspedes

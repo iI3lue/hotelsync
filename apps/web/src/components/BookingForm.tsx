@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Booking } from "@/lib/api";
+import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 
 interface BookingFormProps {
   hotelId: string;
@@ -52,6 +53,10 @@ export default function BookingForm({ hotelId, roomTypeId, date }: BookingFormPr
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    if (!checkIn || !checkOut) {
+      setError("Elegí las fechas de check-in y check-out en el calendario");
+      return;
+    }
     setSaving(true);
     try {
       const created = await postJson<Booking>("/api/booking/bookings", {
@@ -65,7 +70,12 @@ export default function BookingForm({ hotelId, roomTypeId, date }: BookingFormPr
       });
       setBooking(created);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo crear la reserva");
+      const msg = err instanceof Error ? err.message : "No se pudo crear la reserva";
+      setError(
+        msg.includes("409") || msg.toLowerCase().includes("conflict")
+          ? `${msg}. Fechas con alta demanda, probá otro rango.`
+          : msg
+      );
     } finally {
       setSaving(false);
     }
@@ -92,45 +102,33 @@ export default function BookingForm({ hotelId, roomTypeId, date }: BookingFormPr
     <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-800">
       {!booking ? (
         <form onSubmit={handleCreate} className="space-y-4">
-          <div>
-            <label htmlFor="guest-id" className={labelClass}>
-              ID del huésped
-            </label>
-            <input
-              id="guest-id"
-              type="text"
-              value={guestId}
-              onChange={(e) => setGuestId(e.target.value)}
-              className={inputClass}
-              required
-            />
-          </div>
+          <p className="text-sm text-gray-600 dark:text-gray-300">
+            Te asignamos un identificador de huésped automáticamente al crear
+            la reserva.
+          </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label htmlFor="check-in" className={labelClass}>
-                Check-in
-              </label>
-              <input
-                id="check-in"
-                type="date"
-                value={checkIn}
-                onChange={(e) => setCheckIn(e.target.value)}
-                className={`${inputClass} dark:[color-scheme:dark]`}
-                required
+              <span className={labelClass}>Check-in</span>
+              <AvailabilityCalendar
+                roomTypeId={roomTypeId}
+                selected={checkIn || undefined}
+                onSelect={(iso) => {
+                  setCheckIn(iso);
+                  if (checkOut && checkOut <= iso) setCheckOut("");
+                }}
               />
             </div>
             <div>
-              <label htmlFor="check-out" className={labelClass}>
-                Check-out
-              </label>
-              <input
-                id="check-out"
-                type="date"
-                value={checkOut}
-                onChange={(e) => setCheckOut(e.target.value)}
-                className={`${inputClass} dark:[color-scheme:dark]`}
-                required
+              <span className={labelClass}>Check-out</span>
+              <AvailabilityCalendar
+                roomTypeId={roomTypeId}
+                selected={checkOut || undefined}
+                onSelect={setCheckOut}
+                minDate={checkIn || undefined}
               />
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
+                Los días en verde tienen habitaciones libres.
+              </p>
             </div>
           </div>
           <div>
@@ -209,7 +207,8 @@ export default function BookingForm({ hotelId, roomTypeId, date }: BookingFormPr
           ) : null}
           {booking.status === "confirmed" ? (
             <p className="mt-4 rounded bg-green-50 p-3 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-200">
-              Reserva confirmada sin sobreventa (RN-1, BK-4 del PRD). Presentá
+              Reserva confirmada sin sobreventa (RN-1, BK-4 del PRD). Ya figura en
+              recepción del admin automáticamente tras el evento. Presentá
               este ID en recepción para el check-in.
             </p>
           ) : null}
