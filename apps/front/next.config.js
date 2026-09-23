@@ -21,6 +21,14 @@ const nextConfig = {
         source: "/api/front-desk/:path*",
         destination: `${process.env.NEXT_PUBLIC_FRONT_DESK_API_URL || "http://localhost:3005/v1"}/:path*`,
       },
+      {
+        source: "/api/housekeeping/:path*",
+        destination: `${process.env.NEXT_PUBLIC_HOUSEKEEPING_API_URL || "http://localhost:3006/v1"}/:path*`,
+      },
+      {
+        source: "/api/billing/:path*",
+        destination: `${process.env.NEXT_PUBLIC_BILLING_API_URL || "http://localhost:3007/v1"}/:path*`,
+      },
     ];
   },
 };

@@ -42,6 +42,8 @@ cp .env.example services/property-service/.env
 cp .env.example services/rate-availability-service/.env
 cp .env.example services/booking-service/.env
 cp .env.example services/front-desk-service/.env
+cp .env.example services/housekeeping-service/.env
+cp .env.example services/billing-service/.env
 
 # 3. Levantar bases de datos
 docker compose up -d
@@ -54,28 +56,34 @@ npm run migrate:property
 npm run migrate:rate
 npm run migrate:booking
 npm run migrate:front-desk
+npm run migrate:housekeeping
+npm run migrate:billing
 
 # 6. Sembrar datos de prueba
 npm run seed:property
 npm run seed:rate
 npm run seed:booking
 npm run seed:front-desk
+npm run seed:housekeeping
+npm run seed:billing
 
 # 7. Iniciar en desarrollo
-npm run dev:property   # Puerto 3001
-npm run dev:rate       # Puerto 3002
-npm run dev:booking    # Puerto 3004
-npm run dev:front-desk # Puerto 3005
-npm run dev:front      # Puerto 3000 (público + /admin)
+npm run dev:property     # Puerto 3001
+npm run dev:rate         # Puerto 3002
+npm run dev:booking      # Puerto 3004
+npm run dev:front-desk   # Puerto 3005
+npm run dev:housekeeping # Puerto 3006
+npm run dev:billing      # Puerto 3007
+npm run dev:front        # Puerto 3000 (público + /admin)
 ```
 
 ## Docker — Nivel 1 (bases + backends)
 
 ```bash
 # Construir imágenes de los servicios
-docker compose build property-service rate-availability-service booking-service front-desk-service
+docker compose build property-service rate-availability-service booking-service front-desk-service housekeeping-service billing-service
 
-# Levantar todo: 4× PostgreSQL + RabbitMQ + 4× servicios
+# Levantar todo: 6× PostgreSQL + RabbitMQ + 6× servicios
 docker compose up -d
 
 # Ver estado
@@ -86,6 +94,8 @@ docker compose logs property-service --tail 50
 docker compose logs rate-availability-service --tail 50
 docker compose logs booking-service --tail 50
 docker compose logs front-desk-service --tail 50
+docker compose logs housekeeping-service --tail 50
+docker compose logs billing-service --tail 50
 
 # Apagar todo
 docker compose down
@@ -101,8 +111,8 @@ docker compose down
 
 | Herramienta | URL | Credenciales | Qué muestra |
 |-------------|-----|--------------|-------------|
-| RabbitMQ Management | `http://localhost:15672` | `guest` / `guest` | Exchange `hotelsync.events`, cola `front-desk.arrivals` (Messages/Ready/Acks = flujo async en vivo) |
-| Adminer (4 bases) | `http://localhost:8080` | Sistema `PostgreSQL`, usuario `hotelsync`, clave `hotelsync_dev` | Tablas `bookings`, `event_outbox`, `arrivals`, etc. |
+| RabbitMQ Management | `http://localhost:15672` | `guest` / `guest` | Exchange `hotelsync.events`, colas `front-desk.arrivals`, `housekeeping.tasks`, `billing.folio` (Messages/Ready/Acks = flujo async en vivo) |
+| Adminer (6 bases) | `http://localhost:8080` | Sistema `PostgreSQL`, usuario `hotelsync`, clave `hotelsync_dev` | Tablas `bookings`, `event_outbox`, `arrivals`, `cleaning_tasks`, `folios`, `invoices`, etc. |
 
 Servidores en Adminer (red interna de compose, puerto `5432`):
 
@@ -112,6 +122,8 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 | Front Desk | `front-desk-db` | `front_desk_db` |
 | Property | `property-db` | `property_db` |
 | Rate & Availability | `rate-availability-db` | `rate_availability_db` |
+| Housekeeping | `housekeeping-db` | `housekeeping_db` |
+| Billing | `billing-db` | `billing_db` |
 
 > Alternativa sin compose: `npx prisma studio` dentro de cada servicio (usa su `.env`).
 > Si Studio falla en Windows con `Unable to get DMMF ... spawn UNKNOWN`, es instalación corrupta
@@ -166,6 +178,30 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 | POST | `/v1/incidents` | Crear incidencia |
 | PATCH | `/v1/incidents/:id` | Cambiar estado de incidencia |
 
+### Housekeeping Service (puerto 3006)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/health` | Health check |
+| GET | `/v1/tasks?hotel_id=&status=` | Cola de tareas (vía `checkout.completed`) |
+| POST | `/v1/tasks/:id/assign` | Asignar al personal (`assigned_to`) |
+| POST | `/v1/tasks/:id/start` | Pasar a en limpieza |
+| POST | `/v1/tasks/:id/complete` | Completar (habitación a `ready`) |
+| GET | `/v1/rooms?hotel_id=` | Estados de habitación |
+| PUT | `/v1/rooms/status` | Estado manual (`dirty\|cleaning\|ready\|maintenance`) |
+
+### Billing Service (puerto 3007)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/health` | Health check |
+| GET | `/v1/folios?hotel_id=&status=` | Folios abiertos/cerrados |
+| GET | `/v1/folios/:id` | Folio con cargos y factura |
+| POST | `/v1/folios/:id/charges` | Agregar cargo (minibar, spa, restaurante) |
+| POST | `/v1/folios/:id/close` | Cerrar y emitir factura (idempotente) |
+| GET | `/v1/invoices?hotel_id=` | Facturas del hotel |
+| GET | `/v1/invoices/:id` | Factura con folio y cargos |
+
 ## Testing
 
 ```bash
@@ -177,6 +213,8 @@ cd services/property-service && npm test
 cd services/rate-availability-service && npm test
 cd services/booking-service && npm test
 cd services/front-desk-service && npm test
+cd services/housekeeping-service && npm test
+cd services/billing-service && npm test
 ```
 
 ## Arquitectura
@@ -203,6 +241,10 @@ cd services/front-desk-service && npm test
 │  │ Booking (3004)   │  │ Front Desk (3005)        │    │
 │  │ Express + Prisma │  │ Express + Prisma         │    │
 │  └────────┬─────────┘  └────────┬─────────────────┘    │
+│  ┌──────────────────┐  ┌──────────────────────────┐    │
+│  │ Housekeeping(3006)│  │ Billing (3007)           │    │
+│  │ Express + Prisma │  │ Express + Prisma         │    │
+│  └────────┬─────────┘  └────────┬─────────────────┘    │
 └───────────┼──────────────────────┼───────────────────────┘
             │                      │
             ▼                      ▼
@@ -210,6 +252,10 @@ cd services/front-desk-service && npm test
 │   property_db     │  │ rate_availability_db  │  │   booking_db      │  │  front_desk_db    │
 │   PostgreSQL 16   │  │   PostgreSQL 16       │  │  PostgreSQL 16    │  │  PostgreSQL 16    │
 └───────────────────┘  └───────────────────────┘  └───────────────────┘  └───────────────────┘
+┌───────────────────┐  ┌───────────────────┐
+│ housekeeping_db   │  │   billing_db      │
+│   PostgreSQL 16   │  │   PostgreSQL 16   │
+└───────────────────┘  └───────────────────┘
 ```
 
 Front Desk → Booking por REST (`BOOKING_SERVICE_URL`) para check-in puntual;
@@ -218,8 +264,11 @@ Booking ↔ Front Desk por RabbitMQ (`RABBITMQ_URL`, exchange topic
 `booking.created`/`booking.cancelled` con outbox transaccional + confirms,
 Front Desk proyecta el read model `arrivals` (cola `front-desk.arrivals`,
 ack manual, upsert idempotente) y publica `checkout.completed` también vía
-outbox (lo consumen Housekeeping y Billing). Sin `RABBITMQ_URL` ambos
-servicios operan igual pero los eventos quedan `pending` en el outbox.
+outbox. Housekeeping consume `checkout.completed` (cola `housekeeping.tasks`:
+habitación a sucia + tarea automática) y Billing consume `booking.created`
+(apertura de folio) y `checkout.completed` (cierre + `billing.invoice.issued`
+vía outbox propio). Sin `RABBITMQ_URL` los servicios operan igual pero los
+eventos quedan `pending` en el outbox.
 
 ### Modelo de Datos
 
@@ -255,6 +304,22 @@ servicios operan igual pero los eventos quedan `pending` en el outbox.
 | `arrivals` | booking_id (PK), hotel_id, room_type_id, guest_id, check_in, check_out, channel, status | Read model de `booking.created`/`cancelled`, @@index(hotel_id, check_in) |
 | `event_outbox` | event_id (PK), event_type, payload (JSONB), status, attempts, created_at, sent_at | @@index(status, created_at) |
 
+#### Housekeeping Service
+
+| Tabla | Campos principales | Constraints |
+|-------|-------------------|-------------|
+| `rooms` | room_id (PK), hotel_id, room_number, status (`dirty\|cleaning\|ready\|maintenance`) | @@unique(hotel_id, room_number) |
+| `cleaning_tasks` | task_id (PK), booking_id (UNIQUE), hotel_id, physical_room_number, status, assigned_to | Idempotente por booking_id |
+
+#### Billing Service
+
+| Tabla | Campos principales | Constraints |
+|-------|-------------------|-------------|
+| `folios` | folio_id (PK), booking_id (UNIQUE), hotel_id, guest_id, currency, status (`open\|closed`) | Idempotente por booking_id |
+| `charges` | charge_id (PK), folio_id (FK), description, amount, category | @@index(folio_id) |
+| `invoices` | invoice_id (PK), folio_id (UNIQUE), invoice_number (UNIQUE), subtotal, tax_rate, tax_amount, total, currency, country | Una factura por folio |
+| `event_outbox` | event_id (PK), event_type, payload (JSONB), status, attempts, created_at, sent_at | @@index(status, created_at) |
+
 ### Reglas de Negocio
 
 - `available_count >= 0` — no se puede tener inventario negativo
@@ -284,8 +349,9 @@ servicios operan igual pero los eventos quedan `pending` en el outbox.
 | Rate & Availability | Render | 3002 |
 | Booking Service | Render | 3004 |
 | Front Desk Service | Render | 3005 |
-| Web frontend | Vercel | — |
-| Admin frontend | Vercel | — |
+| Housekeeping Service | Render | 3006 |
+| Billing Service | Render | 3007 |
+| Front único (público + /admin) | Vercel | — |
 
 ## Licencia
 

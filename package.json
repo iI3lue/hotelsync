@@ -12,6 +12,8 @@
     "dev:rate": "npm run dev --workspace=services/rate-availability-service",
     "dev:booking": "npm run dev --workspace=services/booking-service",
     "dev:front-desk": "npm run dev --workspace=services/front-desk-service",
+    "dev:housekeeping": "npm run dev --workspace=services/housekeeping-service",
+    "dev:billing": "npm run dev --workspace=services/billing-service",
     "dev:front": "npm run dev --workspace=apps/front",
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces --if-present",
@@ -22,10 +24,14 @@
     "migrate:rate": "npx prisma migrate dev --workspace=services/rate-availability-service",
     "migrate:booking": "npx prisma migrate dev --workspace=services/booking-service",
     "migrate:front-desk": "npx prisma migrate dev --workspace=services/front-desk-service",
+    "migrate:housekeeping": "npx prisma migrate dev --workspace=services/housekeeping-service",
+    "migrate:billing": "npx prisma migrate dev --workspace=services/billing-service",
     "seed:property": "npm run seed --workspace=services/property-service",
     "seed:rate": "npm run seed --workspace=services/rate-availability-service",
     "seed:booking": "npm run seed --workspace=services/booking-service",
-    "seed:front-desk": "npm run seed --workspace=services/front-desk-service"
+    "seed:front-desk": "npm run seed --workspace=services/front-desk-service",
+    "seed:housekeeping": "npm run seed --workspace=services/housekeeping-service",
+    "seed:billing": "npm run seed --workspace=services/billing-service"
   },
   "engines": {
     "node": ">=20.0.0"

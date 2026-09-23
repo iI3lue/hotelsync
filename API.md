@@ -628,6 +628,127 @@ PATCH /v1/incidents/:id
 
 ---
 
+## Housekeeping Service (puerto 3006)
+
+Consume `checkout.completed` de RabbitMQ (cola `housekeeping.tasks`): marca la
+habitación como sucia y crea la tarea de limpieza automáticamente (HK-2).
+Requiere `BOOKING_SERVICE_URL` (default `http://localhost:3004/v1`) para
+resolver el hotel de la reserva.
+
+### Health Check
+
+```
+GET /health
+```
+
+**Response:**
+```json
+{ "status": "ok", "service": "housekeeping-service" }
+```
+
+---
+
+### Tareas de Limpieza
+
+```
+GET /v1/tasks?hotel_id=<uuid>&status=<pending|assigned|in_progress|done|cancelled>
+POST /v1/tasks/:id/assign
+POST /v1/tasks/:id/start
+POST /v1/tasks/:id/complete
+```
+
+**POST /v1/tasks/:id/assign body:**
+```json
+{ "assigned_to": "Lucía" }
+```
+
+Completar la tarea deja la habitación en `ready` en la misma transacción
+(HK-4). Transiciones válidas: `pending → assigned|in_progress|cancelled`,
+`assigned → in_progress|cancelled`, `in_progress → done|cancelled`.
+
+---
+
+### Habitaciones
+
+```
+GET /v1/rooms?hotel_id=<uuid>
+PUT /v1/rooms/status
+```
+
+**PUT body:**
+```json
+{
+  "hotel_id": "c1b2c3d4-e5f6-4890-abcd-ef1234567890",
+  "room_number": "101",
+  "status": "dirty" | "cleaning" | "ready" | "maintenance"
+}
+```
+
+**Response (200):** Objeto `room` con su estado (HK-1).
+
+---
+
+## Billing Service (puerto 3007)
+
+Consume `booking.created` (abre el folio con el cargo de habitación) y
+`checkout.completed` (cierra el folio y emite la factura) de RabbitMQ
+(cola `billing.folio`). Publica `billing.invoice.issued` vía outbox
+transaccional. Requiere `BOOKING_SERVICE_URL` y `PROPERTY_SERVICE_URL`
+(país del hotel para la tasa fiscal, BL-4).
+
+### Health Check
+
+```
+GET /health
+```
+
+**Response:**
+```json
+{ "status": "ok", "service": "billing-service" }
+```
+
+---
+
+### Folios
+
+```
+GET /v1/folios?hotel_id=<uuid>&status=<open|closed>
+GET /v1/folios/:id
+POST /v1/folios/:id/charges
+POST /v1/folios/:id/close
+```
+
+**POST /v1/folios/:id/charges body:**
+```json
+{
+  "description": "Minibar",
+  "amount": 15000,
+  "category": "minibar" | "spa" | "restaurant" | "room" | "other"
+}
+```
+
+**Reglas de negocio:**
+- Solo se agregan cargos al folio abierto (409 si está cerrado)
+- El cierre es idempotente: si ya existe factura la devuelve sin duplicar
+- Cierre + factura + evento en una sola transacción (rollback conjunto)
+
+**Response POST /v1/folios/:id/close (200):** Objeto `invoice` con
+`subtotal`, `tax_rate`, `tax_amount`, `total`, `currency` y `country`.
+
+---
+
+### Facturas
+
+```
+GET /v1/invoices?hotel_id=<uuid>
+GET /v1/invoices/:id
+```
+
+**Response (200):** Factura con su folio y cargos. Tasas por país (BL-4,
+tabla simplificada): CO 19%, AR 21%, CL 19%, MX 16%, ES 21%, resto 0%.
+
+---
+
 ## Errores Comunes
 
 | HTTP Code | Significado | Ejemplo |

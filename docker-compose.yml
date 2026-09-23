@@ -90,6 +90,10 @@ services:
         condition: service_healthy
       front-desk-db:
         condition: service_healthy
+      housekeeping-db:
+        condition: service_healthy
+      billing-db:
+        condition: service_healthy
     restart: unless-stopped
 
   property-service:
@@ -164,9 +168,88 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  housekeeping-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: housekeeping_db
+      POSTGRES_USER: hotelsync
+      POSTGRES_PASSWORD: hotelsync_dev
+    ports:
+      - "5436:5432"
+    volumes:
+      - housekeeping_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotelsync -d housekeeping_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  billing-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: billing_db
+      POSTGRES_USER: hotelsync
+      POSTGRES_PASSWORD: hotelsync_dev
+    ports:
+      - "5437:5432"
+    volumes:
+      - billing_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotelsync -d billing_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  housekeeping-service:
+    build:
+      context: .
+      dockerfile: services/housekeeping-service/Dockerfile
+    ports:
+      - "3006:3006"
+    environment:
+      NODE_ENV: production
+      PORT: "3006"
+      DATABASE_URL: postgresql://hotelsync:hotelsync_dev@housekeeping-db:5432/housekeeping_db
+      BOOKING_SERVICE_URL: http://booking-service:3004/v1
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    depends_on:
+      housekeeping-db:
+        condition: service_healthy
+      booking-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  billing-service:
+    build:
+      context: .
+      dockerfile: services/billing-service/Dockerfile
+    ports:
+      - "3007:3007"
+    environment:
+      NODE_ENV: production
+      PORT: "3007"
+      DATABASE_URL: postgresql://hotelsync:hotelsync_dev@billing-db:5432/billing_db
+      BOOKING_SERVICE_URL: http://booking-service:3004/v1
+      PROPERTY_SERVICE_URL: http://property-service:3001/v1
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    depends_on:
+      billing-db:
+        condition: service_healthy
+      booking-service:
+        condition: service_started
+      property-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   property_data:
   rate_availability_data:
   booking_data:
   front_desk_data:
+  housekeeping_data:
+  billing_data:
   rabbitmq_data:
