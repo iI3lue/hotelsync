@@ -1,0 +1,47 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/**
+ * Registro de habitaciones físicas por hotel (HK-1).
+ * La fila se crea sola con el primer checkout de esa habitación;
+ * el estado manual (maintenance) se gestiona por API.
+ * Sin FK entre bases: hotel_id es solo el UUID de Property.
+ */
+model Room {
+  room_id       String   @id @default(uuid()) @db.Uuid
+  hotel_id      String   @db.Uuid
+  room_number   String   @db.VarChar(20)
+  status        String   @default("ready") @db.VarChar(20)
+  updated_at    DateTime @updatedAt @db.Timestamptz(6)
+
+  @@unique([hotel_id, room_number])
+  @@index([hotel_id, status])
+  @@map("rooms")
+}
+
+/**
+ * Tareas de limpieza (HK-2, HK-3).
+ * `booking_id` es la clave de idempotencia: un checkout genera una sola
+ * tarea aunque el broker redeliveree `checkout.completed`.
+ */
+model CleaningTask {
+  task_id              String    @id @default(uuid()) @db.Uuid
+  booking_id           String    @unique @db.Uuid
+  hotel_id             String    @db.Uuid
+  physical_room_number String    @db.VarChar(20)
+  status               String    @default("pending") @db.VarChar(20)
+  assigned_to          String?   @db.VarChar(100)
+  created_at           DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at           DateTime  @updatedAt @db.Timestamptz(6)
+
+  @@index([hotel_id, status])
+  @@index([booking_id])
+  @@map("cleaning_tasks")
+}
