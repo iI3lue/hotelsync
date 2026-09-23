@@ -98,8 +98,7 @@ jobs:
 
       - name: Build frontend
         run: |
-          npm run build --workspace=apps/web
-          npm run build --workspace=apps/admin
+          npm run build --workspace=apps/front
 
       - name: Run tests
         run: npm test --workspaces --if-present

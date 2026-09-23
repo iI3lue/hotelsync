@@ -19,5 +19,4 @@ jobs:
           echo "Configure Render service hooks for each service"
           echo "Property Service → Render Web Service"
           echo "Rate & Availability Service → Render Web Service"
-          echo "Web Frontend → Vercel"
-          echo "Admin Frontend → Vercel"
+          echo "Front único (público + /admin) → Vercel"

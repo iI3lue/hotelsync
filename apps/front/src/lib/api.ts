@@ -36,17 +36,23 @@ export interface Availability {
   blocked: number;
 }
 
-export interface BookingRef {
+export interface Booking {
   booking_id: string;
   guest_id: string;
   hotel_id: string;
   room_type_id: string;
   check_in: string;
   check_out: string;
-  status: string;
-  channel: string;
+  status: "pending" | "confirmed" | "cancelled";
+  channel: "direct" | "ota" | "phone";
   total_amount: number | string;
 }
+
+/** Alias de compatibilidad con el admin original. */
+export type BookingRef = Booking & {
+  status: Booking["status"] | (string & {});
+  channel: Booking["channel"] | (string & {});
+};
 
 export interface RoomAssignment {
   assignment_id: string;
@@ -98,6 +104,8 @@ async function apiPut<T>(url: string, body: unknown): Promise<T> {
   return res.json();
 }
 
+export { apiPut };
+
 export async function fetchHotels(): Promise<Hotel[]> {
   return cachedFetchHotels();
 }
@@ -110,6 +118,7 @@ export async function fetchRoomTypes(hotelId: string): Promise<RoomType[]> {
   return cachedFetchRoomTypes(hotelId);
 }
 
+// Per-request dedup (server-cache-react): misma URL = 1 solo viaje al backend.
 const cachedFetchHotels = cache(async (): Promise<Hotel[]> => {
   return apiFetch<Hotel[]>(`${PROPERTY_API}/hotels`);
 });
@@ -122,15 +131,72 @@ const cachedFetchRoomTypes = cache(async (hotelId: string): Promise<RoomType[]> 
   return apiFetch<RoomType[]>(`${PROPERTY_API}/hotels/${hotelId}/room-types`);
 });
 
-export function filterHotels(
-  hotels: Hotel[],
-  query?: string
-): Hotel[] {
-  const q = query?.trim().toLowerCase();
-  if (!q) return hotels;
-  return hotels.filter((hotel) =>
-    `${hotel.name} ${hotel.city} ${hotel.country}`.toLowerCase().includes(q)
-  );
+export interface HotelFilters {
+  city?: string;
+  amenity?: string;
+  minCapacity?: number;
+}
+
+/**
+ * Filtro unificado: acepta el objeto de la web pública
+ * ({city, amenity, minCapacity}) o el query simple del admin (string).
+ */
+export function filterHotels(hotels: Hotel[], filters?: HotelFilters | string): Hotel[] {
+  if (typeof filters === "string") {
+    const q = filters.trim().toLowerCase();
+    if (!q) return hotels;
+    return hotels.filter((hotel) =>
+      `${hotel.name} ${hotel.city} ${hotel.country}`.toLowerCase().includes(q)
+    );
+  }
+  const city = filters?.city?.trim().toLowerCase();
+  const amenity = filters?.amenity?.trim().toLowerCase();
+  const minCapacity = filters?.minCapacity;
+  if (!city && !amenity && !minCapacity) return hotels;
+  return hotels.filter((hotel) => {
+    if (
+      city &&
+      !`${hotel.name} ${hotel.city} ${hotel.country}`.toLowerCase().includes(city)
+    ) {
+      return false;
+    }
+    const roomTypes = hotel.roomTypes ?? [];
+    if (amenity && !roomTypes.some((r) => (r.amenities ?? []).some((a) => a.toLowerCase().includes(amenity)))) {
+      return false;
+    }
+    if (minCapacity && !roomTypes.some((r) => r.capacity >= minCapacity)) {
+      return false;
+    }
+    return true;
+  });
+}
+
+const priceFormatter = new Intl.NumberFormat("es-CO", {
+  style: "currency",
+  currency: "COP",
+  maximumFractionDigits: 0,
+});
+
+export function formatPrice(value: number | string): string {
+  return priceFormatter.format(Number(value));
+}
+
+export function formatDate(dateIso: string): string {
+  try {
+    return new Intl.DateTimeFormat("es-CO", {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    }).format(new Date(`${dateIso}T12:00:00`));
+  } catch {
+    return dateIso;
+  }
+}
+
+export function minRate(hotel: Hotel): number | null {
+  const rates = (hotel.roomTypes ?? []).map((r) => Number(r.base_rate));
+  if (rates.length === 0) return null;
+  return Math.min(...rates);
 }
 
 export async function createHotel(data: {
@@ -197,8 +263,8 @@ export async function fetchIncidents(bookingId?: string): Promise<GuestIncident[
   return apiFetch<GuestIncident[]>(`${FRONT_DESK_API}/incidents${query}`);
 }
 
-export async function fetchBookingById(id: string): Promise<BookingRef> {
-  return apiFetch<BookingRef>(`${BOOKING_API}/bookings/${id}`);
+export async function fetchBookingById(id: string): Promise<Booking> {
+  return apiFetch<Booking>(`${BOOKING_API}/bookings/${id}`);
 }
 
 export interface BookingsQuery {

@@ -12,7 +12,7 @@ export default function AdminFilters({ initialQuery = "" }: { initialQuery?: str
     const params = new URLSearchParams();
     if (query.trim()) params.set("q", query.trim());
     const qs = params.toString();
-    router.push(qs ? `/hotels?${qs}` : "/hotels");
+    router.push(qs ? `/admin/hotels?${qs}` : "/admin/hotels");
   };
 
   return (
@@ -50,7 +50,7 @@ export default function AdminFilters({ initialQuery = "" }: { initialQuery?: str
         </button>
         {initialQuery ? (
           <a
-            href="/hotels"
+            href="/admin/hotels"
             className="rounded border border-gray-300 px-4 py-2 font-medium transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 touch-manipulation dark:border-gray-600 dark:hover:bg-gray-700"
           >
             Limpiar

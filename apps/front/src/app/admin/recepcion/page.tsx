@@ -40,8 +40,8 @@ export default async function RecepcionPage({
   const baseParams = new URLSearchParams();
   if (effectiveHotel) baseParams.set("hotel_id", effectiveHotel);
   if (effectiveDate) baseParams.set("date", effectiveDate);
-  const reservasHref = `/recepcion?${new URLSearchParams({ ...Object.fromEntries(baseParams), tab: "reservas" }).toString()}`;
-  const llegadasHref = `/recepcion?${new URLSearchParams({ ...Object.fromEntries(baseParams), tab: "llegadas" }).toString()}`;
+  const reservasHref = `/admin/recepcion?${new URLSearchParams({ ...Object.fromEntries(baseParams), tab: "reservas" }).toString()}`;
+  const llegadasHref = `/admin/recepcion?${new URLSearchParams({ ...Object.fromEntries(baseParams), tab: "llegadas" }).toString()}`;
 
   return (
     <div>
@@ -55,7 +55,7 @@ export default async function RecepcionPage({
 
       <form
         method="get"
-        action="/recepcion"
+        action="/admin/recepcion"
         className="mb-6 rounded-lg bg-white p-4 shadow dark:bg-gray-800"
       >
         <input type="hidden" name="tab" value={activeTab} />

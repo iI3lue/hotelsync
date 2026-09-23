@@ -19,8 +19,7 @@ hotelsync/
 �   ��� booking-service/          # Reservas, confirmaci�n con bloqueo optimista
 �   ��� front-desk-service/       # Llegadas, check-in/out, incidencias
 ��� apps/
-�   ��� web/                      # Web p�blica SSR (reservaci�n directa)
-�   ��� admin/                    # Panel de administraci�n
+�   ��� front/                    # Front único SSR (zona pública + /admin, puerto 3000)
 ��� docker-compose.yml            # 4� PostgreSQL 16 aislados
 ��� package.json                  # npm workspaces
 ��� tsconfig.base.json            # Config TypeScript compartida
@@ -67,8 +66,7 @@ npm run dev:property   # Puerto 3001
 npm run dev:rate       # Puerto 3002
 npm run dev:booking    # Puerto 3004
 npm run dev:front-desk # Puerto 3005
-npm run dev:web        # Puerto 3000
-npm run dev:admin      # Puerto 3003
+npm run dev:front      # Puerto 3000 (público + /admin)
 ```
 
 ## Docker — Nivel 1 (bases + backends)
@@ -187,14 +185,14 @@ cd services/front-desk-service && npm test
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│                      FRONTENDS                          │
-│  ┌──────────────┐  ┌──────────────┐                    │
-│  │   Web (3000) │  │ Admin (3003) │                    │
-│  │  Next.js SSR │  │  Next.js     │                    │
-│  └──────┬───────┘  └──────┬───────┘                    │
-└─────────┼──────────────────┼─────────────────────────────┘
-          │                  │
-          ▼                  ▼
+│                      FRONT ÚNICO                        │
+│  ┌──────────────────────────────────────────────┐    │
+│  │   Front (3000) — público + /admin            │    │
+│  │   Next.js SSR                                │    │
+│  └──────────────────┬───────────────────────────┘    │
+└────────────────────┼────────────────────────────────────┘
+                     │
+                     ▼
 ┌─────────────────────────────────────────────────────────┐
 │                      BACKENDS                           │
 │  ┌──────────────────┐  ┌──────────────────────────┐    │

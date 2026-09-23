@@ -33,8 +33,8 @@ export default async function DashboardPage() {
   }
 
   const receptionHref = firstHotelId
-    ? `/recepcion?hotel_id=${firstHotelId}&date=${todayIso()}`
-    : "/recepcion";
+    ? `/admin/recepcion?hotel_id=${firstHotelId}&date=${todayIso()}`
+    : "/admin/recepcion";
 
   return (
     <div>
@@ -49,7 +49,7 @@ export default async function DashboardPage() {
           </p>
           <p className="mt-2">
             <a
-              href="/hotels"
+              href="/admin/hotels"
               className="text-blue-600 hover:underline dark:text-blue-400"
             >
               Administrar

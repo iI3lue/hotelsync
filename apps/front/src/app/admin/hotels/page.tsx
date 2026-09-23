@@ -30,14 +30,14 @@ async function HotelsTable({ query }: { query?: string }) {
         </p>
         {query ? (
           <Link
-            href="/hotels"
+            href="/admin/hotels"
             className="inline-block rounded bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 touch-manipulation"
           >
             Limpiar búsqueda
           </Link>
         ) : (
           <Link
-            href="/hotels/new"
+            href="/admin/hotels/new"
             className="inline-block rounded bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 touch-manipulation"
           >
             Crear el primer hotel
@@ -93,25 +93,25 @@ async function HotelsTable({ query }: { query?: string }) {
               <td className="whitespace-nowrap px-6 py-4">
                 <span className="inline-flex flex-wrap items-center gap-x-1 gap-y-1">
                   <Link
-                    href={`/hotels/${hotel.hotel_id}`}
+                    href={`/admin/hotels/${hotel.hotel_id}`}
                     className="rounded px-2 py-1 text-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-400"
                   >
                     Ver
                   </Link>
                   <Link
-                    href={`/hotels/${hotel.hotel_id}/rooms`}
+                    href={`/admin/hotels/${hotel.hotel_id}/rooms`}
                     className="rounded px-2 py-1 text-green-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 dark:text-green-400"
                   >
                     Habitaciones
                   </Link>
                   <Link
-                    href={`/hotels/${hotel.hotel_id}/inventory`}
+                    href={`/admin/hotels/${hotel.hotel_id}/inventory`}
                     className="rounded px-2 py-1 text-purple-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 dark:text-purple-400"
                   >
                     Inventario
                   </Link>
                   <Link
-                    href={`/recepcion?hotel_id=${hotel.hotel_id}`}
+                    href={`/admin/recepcion?hotel_id=${hotel.hotel_id}`}
                     className="rounded px-2 py-1 text-orange-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-orange-500 dark:text-orange-400"
                   >
                     Recepción
@@ -144,7 +144,7 @@ export default async function HotelsPage({
       <div className="mb-6 flex flex-wrap items-center justify-between gap-4">
         <h1 className="text-balance text-3xl font-bold">Hoteles</h1>
         <a
-          href="/hotels/new"
+          href="/admin/hotels/new"
           className="rounded bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 touch-manipulation"
         >
           Agregar hotel

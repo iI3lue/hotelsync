@@ -22,13 +22,13 @@ export default async function HotelDetailPage({
 
       <div className="flex space-x-4 mb-6">
         <a
-          href={`/hotels/${id}/rooms`}
+          href={`/admin/hotels/${id}/rooms`}
           className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700"
         >
           Gestionar tipos de habitación
         </a>
         <a
-          href={`/hotels/${id}/inventory`}
+          href={`/admin/hotels/${id}/inventory`}
           className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700"
         >
           Gestionar inventario
