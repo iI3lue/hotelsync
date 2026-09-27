@@ -7,6 +7,12 @@ describe("tax", () => {
     expect(taxRateForCountry("AR")).toBe(0.21);
   });
 
+  it("should accept country names as stored by Property", () => {
+    expect(taxRateForCountry("Argentina")).toBe(0.21);
+    expect(taxRateForCountry("Colombia")).toBe(0.19);
+    expect(taxRateForCountry("México")).toBe(0.16);
+  });
+
   it("should return 0 for unknown or missing country", () => {
     expect(taxRateForCountry("XX")).toBe(0);
     expect(taxRateForCountry(undefined)).toBe(0);
