@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { memo } from "react";
 import type { Hotel } from "@/lib/api";
-import { formatPrice, minRate } from "@/lib/format";
+import { minRate } from "@/lib/format";
+import PriceFrom from "@/components/PriceFrom";
 
 function initials(name: string): string {
   return name
@@ -18,7 +19,6 @@ function HotelCard({ hotel }: { hotel: Hotel }) {
   const amenities = Array.from(
     new Set(roomTypes.flatMap((r) => r.amenities ?? []))
   ).slice(0, 3);
-  const lowAvailability = roomTypeCount > 0 && roomTypeCount <= 2;
 
   return (
     <article
@@ -36,14 +36,7 @@ function HotelCard({ hotel }: { hotel: Hotel }) {
         <p className="mb-3 truncate text-gray-600 dark:text-gray-300">
           {hotel.city}, {hotel.country}
         </p>
-        {rate !== null ? (
-          <p className="mb-1 text-lg font-bold text-blue-600 tabular-nums dark:text-blue-400">
-            {formatPrice(rate)}{" "}
-            <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
-              / noche desde
-            </span>
-          </p>
-        ) : null}
+        {rate !== null ? <PriceFrom rate={rate} /> : null}
         <p className="mb-3 text-sm text-gray-500 dark:text-gray-400">
           {roomTypeCount === 0
             ? "Sin tipos de habitación cargados"
@@ -62,11 +55,6 @@ function HotelCard({ hotel }: { hotel: Hotel }) {
               </span>
             ))}
           </div>
-        ) : null}
-        {lowAvailability ? (
-          <p className="mb-3 text-sm font-semibold text-red-600 dark:text-red-400">
-            ¡Quedan pocas opciones en este hotel!
-          </p>
         ) : null}
         <div className="mt-auto flex gap-2">
           <Link

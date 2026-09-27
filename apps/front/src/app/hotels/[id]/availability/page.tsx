@@ -1,5 +1,6 @@
 import { fetchAvailability, fetchHotelById, fetchRoomTypes } from "@/lib/api";
 import AvailabilityForm from "@/components/AvailabilityForm";
+import Breadcrumbs from "@/components/Breadcrumbs";
 
 export default async function AvailabilityPage({
   params,
@@ -28,19 +29,12 @@ export default async function AvailabilityPage({
 
   return (
     <div>
-      <nav aria-label="Miga de pan" className="mb-4 text-sm">
-        <a href="/" className="text-blue-600 hover:underline dark:text-blue-400">
-          Inicio
-        </a>{" "}
-        <span aria-hidden="true">/</span>{" "}
-        <a
-          href={`/hotels/${id}`}
-          className="text-blue-600 hover:underline dark:text-blue-400"
-        >
-          {hotel?.name ?? "Hotel"}
-        </a>{" "}
-        <span aria-hidden="true">/</span> <span>Disponibilidad</span>
-      </nav>
+      <Breadcrumbs
+        items={[
+          { label: hotel?.name ?? "Hotel", href: `/hotels/${id}` },
+          { label: "Disponibilidad" },
+        ]}
+      />
       <h1 className="mb-2 text-balance text-3xl font-bold">
         Consultar disponibilidad
       </h1>

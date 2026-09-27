@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Breadcrumbs from "@/components/Breadcrumbs";
 import BookingForm from "@/components/BookingForm";
 import NuevaReservaSetup from "@/components/NuevaReservaSetup";
 import { fetchRoomTypes } from "@/lib/api";
@@ -27,12 +28,7 @@ export default async function NuevaReservaPage({
 
   return (
     <div>
-      <nav aria-label="Miga de pan" className="mb-4 text-sm">
-        <a href="/" className="text-blue-600 hover:underline dark:text-blue-400">
-          Inicio
-        </a>{" "}
-        <span aria-hidden="true">/</span> <span>Reserva</span>
-      </nav>
+      <Breadcrumbs items={[{ label: "Reserva" }]} />
       <h1 className="mb-2 text-balance text-3xl font-bold">Tu reserva</h1>
       <p className="mb-6 max-w-2xl break-words text-gray-600 dark:text-gray-300">
         Reserva directa sobre Booking Service (BK-1): se crea en estado{" "}

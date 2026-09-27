@@ -129,7 +129,7 @@ export default function InventoryTable({
       <button
         type="submit"
         disabled={loading}
-        className="bg-purple-600 text-white px-4 py-2 rounded hover:bg-purple-700 disabled:opacity-50"
+        className="rounded bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 touch-manipulation disabled:opacity-50"
       >
         {loading ? "Procesando..." : "Actualizar inventario"}
       </button>

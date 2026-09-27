@@ -1,4 +1,6 @@
-import { fetchHotelById, fetchRoomTypes, formatPrice } from "@/lib/api";
+import { fetchHotelById, fetchRoomTypes } from "@/lib/api";
+import Breadcrumbs from "@/components/Breadcrumbs";
+import PriceFrom from "@/components/PriceFrom";
 import RoomTypeCard from "@/components/RoomTypeCard";
 import EmptyState from "@/components/EmptyState";
 
@@ -30,12 +32,7 @@ export default async function HotelDetailPage({
 
   return (
     <div>
-      <nav aria-label="Miga de pan" className="mb-4 text-sm">
-        <a href="/" className="text-blue-600 hover:underline dark:text-blue-400">
-          Inicio
-        </a>{" "}
-        <span aria-hidden="true">/</span> <span>{hotel.name}</span>
-      </nav>
+      <Breadcrumbs items={[{ label: hotel.name }]} />
 
       <div
         aria-hidden="true"
@@ -48,14 +45,7 @@ export default async function HotelDetailPage({
       <p className="mb-2 break-words text-gray-600 dark:text-gray-300">
         {hotel.city}, {hotel.country} · Zona horaria: {hotel.timezone}
       </p>
-      {from !== null ? (
-        <p className="mb-6 text-xl font-bold text-blue-600 tabular-nums dark:text-blue-400">
-          {formatPrice(from)}{" "}
-          <span className="text-sm font-normal text-gray-500 dark:text-gray-400">
-            / noche desde
-          </span>
-        </p>
-      ) : null}
+      {from !== null ? <PriceFrom rate={from} size="lg" /> : null}
 
       <div className="mb-8 flex flex-wrap gap-3">
         <a
