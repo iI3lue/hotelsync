@@ -4,6 +4,7 @@ import { useState } from "react";
 import type { Booking } from "@/lib/api";
 import { postJson } from "@/lib/api-client";
 import AvailabilityCalendar from "@/components/AvailabilityCalendar";
+import Spinner from "@/components/Spinner";
 
 interface BookingFormProps {
   hotelId: string;
@@ -137,9 +138,9 @@ export default function BookingForm({ hotelId, roomTypeId, date }: BookingFormPr
           <button
             type="submit"
             disabled={saving}
-            className="rounded bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 touch-manipulation disabled:opacity-50"
+            className="btn-press rounded bg-green-600 px-4 py-2 font-medium text-white transition-colors hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 touch-manipulation disabled:opacity-50"
           >
-            {saving ? "Creando…" : "Crear reserva"}
+            {saving ? <Spinner label="Creando…" /> : "Crear reserva"}
           </button>
         </form>
       ) : (
@@ -179,33 +180,53 @@ export default function BookingForm({ hotelId, roomTypeId, date }: BookingFormPr
                 type="button"
                 onClick={() => handleTransition("confirm")}
                 disabled={saving}
-                className="rounded bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 touch-manipulation disabled:opacity-50"
+                className="btn-press rounded bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 touch-manipulation disabled:opacity-50"
               >
-                {saving ? "Procesando…" : "Confirmar (bloqueo optimista)"}
+                {saving ? <Spinner label="Procesando…" /> : "Confirmar (bloqueo optimista)"}
               </button>
               <button
                 type="button"
                 onClick={() => handleTransition("cancel")}
                 disabled={saving}
-                className="rounded border border-gray-300 px-4 py-2 font-medium transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 touch-manipulation dark:border-gray-600 dark:hover:bg-gray-700 disabled:opacity-50"
+                className="btn-press rounded border border-gray-300 px-4 py-2 font-medium transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 touch-manipulation dark:border-gray-600 dark:hover:bg-gray-700 disabled:opacity-50"
               >
-                Cancelar reserva
+                {saving ? <Spinner label="Procesando…" /> : "Cancelar reserva"}
               </button>
             </div>
           ) : null}
           {booking.status === "confirmed" ? (
-            <p className="mt-4 rounded bg-green-50 p-3 text-sm text-green-800 dark:bg-green-900/30 dark:text-green-200">
-              Reserva confirmada sin sobreventa (RN-1, BK-4 del PRD). Ya figura en
-              recepción del admin automáticamente tras el evento. Presentá
-              este ID en recepción para el check-in.
-            </p>
+            <div
+              key={booking.booking_id}
+              className="animate-notice-in mt-4 rounded bg-gradient-to-br from-green-50 to-emerald-100/60 p-3 dark:from-green-900/30 dark:to-emerald-900/10"
+            >
+              <p className="flex items-center gap-2 text-sm font-semibold text-green-800 dark:text-green-200">
+                <svg
+                  aria-hidden="true"
+                  className="animate-check-draw h-5 w-5"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="3"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M4 12.5l5 5L20 6.5" />
+                </svg>
+                Reserva confirmada sin sobreventa
+              </p>
+              <p className="mt-1 text-sm text-green-800 dark:text-green-200">
+                RN-1, BK-4 del PRD. Ya figura en recepción del admin
+                automáticamente tras el evento. Presentá este ID en recepción
+                para el check-in.
+              </p>
+            </div>
           ) : null}
         </div>
       )}
 
       <div aria-live="polite" className="mt-4">
         {error ? (
-          <p role="alert" className="text-red-600 dark:text-red-400">
+          <p role="alert" className="animate-notice-in text-red-600 dark:text-red-400">
             {error}
           </p>
         ) : null}

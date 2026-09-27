@@ -5,6 +5,7 @@ import useSWR from "swr";
 import type { Availability, RoomType } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import AvailabilityCalendar from "@/components/AvailabilityCalendar";
+import Spinner from "@/components/Spinner";
 
 interface AvailabilityFormProps {
   hotelId: string;
@@ -120,21 +121,24 @@ export default function AvailabilityForm({
         <button
           type="submit"
           disabled={isPending || isLoading || !roomId || !date}
-          className="rounded bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 touch-manipulation disabled:opacity-50"
+          className="btn-press rounded bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 touch-manipulation disabled:opacity-50"
         >
-          {isPending || isLoading ? "Consultando…" : "Consultar disponibilidad"}
+          {isPending || isLoading ? <Spinner label="Consultando…" /> : "Consultar disponibilidad"}
         </button>
       </form>
 
       <div aria-live="polite" className="mt-4">
         {error ? (
-          <p role="alert" className="text-red-600 dark:text-red-400">
+          <p role="alert" className="animate-notice-in text-red-600 dark:text-red-400">
             No se pudo consultar la disponibilidad. Probá con otra fecha o
             recargá la página.
           </p>
         ) : null}
         {data ? (
-          <div className="mt-2 rounded bg-gray-50 p-4 dark:bg-gray-700">
+          <div
+            key={`${submitted?.roomId}-${submitted?.date}`}
+            className="animate-notice-in mt-2 rounded bg-gray-50 p-4 dark:bg-gray-700"
+          >
             <h3 className="mb-2 font-semibold">
               Resultado{date || submitted?.date ? ` · ${formatDate(date || submitted?.date || "")}` : ""}
             </h3>
