@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import ReceptionBoard from "@/components/ReceptionBoard";
 import BookingsAutoTable from "@/components/BookingsAutoTable";
-import DateField from "@/components/DateField";
+import DatePickerButton from "@/components/DatePickerButton";
 import { fetchHotels } from "@/lib/api";
 
 export const metadata: Metadata = {
@@ -91,7 +91,7 @@ export default async function RecepcionPage({
             )}
           </div>
           <div>
-            <DateField name="date" label="Fecha" defaultValue={effectiveDate} />
+            <DatePickerButton name="date" label="Fecha" defaultValue={effectiveDate} />
           </div>
         </div>
         <button

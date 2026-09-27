@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { blockInventory } from "@/lib/api-client";
 import type { RoomType } from "@/lib/api";
-import DatePicker from "@/components/DatePicker";
+import DatePickerButton from "@/components/DatePickerButton";
 
 const inputClass =
   "w-full border border-gray-300 rounded px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100";
@@ -94,7 +94,7 @@ export default function InventoryTable({
           )}
         </div>
         <div>
-          <DatePicker label="Fecha" value={date} onChange={setDate} />
+          <DatePickerButton label="Fecha" value={date} onChange={setDate} />
         </div>
         <div>
           <label htmlFor="inventory-count" className={labelClass}>

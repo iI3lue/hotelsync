@@ -4,44 +4,51 @@ import { useEffect, useRef, useState } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
 import { es } from "react-day-picker/locale";
-import { fromIsoDate, toIsoDate } from "@/components/AvailabilityCalendar";
+import { formatShort, fromIsoDate, toIsoDate } from "@/lib/dates";
 
 const buttonClass =
   "w-full rounded border border-gray-300 bg-white px-3 py-2 text-left text-gray-900 touch-manipulation dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100";
 const labelClass =
   "block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200";
 
-function formatShort(iso: string): string {
-  const d = fromIsoDate(iso);
-  if (!d) return iso;
-  return new Intl.DateTimeFormat("es-CO", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(d);
-}
-
 interface DatePickerButtonProps {
   label: string;
-  value: string;
-  onChange: (iso: string) => void;
+  /** Controlado: valor actual. Si se omite, usa defaultValue (no controlado). */
+  value?: string;
+  defaultValue?: string;
+  onChange?: (iso: string) => void;
   minDate?: string;
   id?: string;
+  /** Si se pasa, renderiza un hidden input para formularios GET clásicos. */
+  name?: string;
 }
 
+/**
+ * Selector de fecha único del front (público + admin): botón con popover
+ * de calendario en español, con valor controlado o no controlado y
+ * soporte de hidden input para formularios server-side.
+ */
 export default function DatePickerButton({
   label,
   value,
+  defaultValue = "",
   onChange,
   minDate,
   id,
+  name,
 }: DatePickerButtonProps) {
+  const [inner, setInner] = useState(value ?? defaultValue);
   const [open, setOpen] = useState(false);
   const boxRef = useRef<HTMLDivElement>(null);
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const min = minDate ? (fromIsoDate(minDate) ?? today) : today;
-  const selected = value ? fromIsoDate(value) : undefined;
+  const current = value ?? inner;
+  const selected = current ? fromIsoDate(current) : undefined;
+
+  useEffect(() => {
+    if (value !== undefined) setInner(value);
+  }, [value]);
 
   useEffect(() => {
     if (!open) return;
@@ -54,11 +61,18 @@ export default function DatePickerButton({
     return () => document.removeEventListener("pointerdown", onDown);
   }, [open ]);
 
+  const pick = (iso: string) => {
+    if (onChange) onChange(iso);
+    else setInner(iso);
+    setOpen(false);
+  };
+
   return (
     <div ref={boxRef} className="relative min-w-0">
       <span id={id ? `${id}-label` : undefined} className={labelClass}>
         {label}
       </span>
+      {name ? <input type="hidden" name={name} value={current} /> : null}
       <button
         type="button"
         id={id}
@@ -68,7 +82,7 @@ export default function DatePickerButton({
         onClick={() => setOpen((v) => !v)}
         className={buttonClass}
       >
-        {value ? formatShort(value) : "Elegir fecha…"}
+        {current ? formatShort(current) : "Elegir fecha…"}
       </button>
       {open ? (
         <div
@@ -82,14 +96,15 @@ export default function DatePickerButton({
             required
             selected={selected}
             onSelect={(d) => {
-              if (d) {
-                onChange(toIsoDate(d));
-                setOpen(false);
-              }
+              if (d) pick(toIsoDate(d));
             }}
             disabled={{ before: min }}
             captionLayout="dropdown"
-            startMonth={new Date(today.getFullYear(), today.getMonth(), 1)}
+            startMonth={
+              minDate
+                ? new Date(today.getFullYear(), today.getMonth(), 1)
+                : new Date(today.getFullYear() - 1, 0, 1)
+            }
             endMonth={new Date(today.getFullYear() + 1, today.getMonth(), 1)}
           />
         </div>
