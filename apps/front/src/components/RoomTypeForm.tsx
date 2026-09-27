@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { createRoomType } from "@/lib/api";
+import { createRoomType } from "@/lib/api-client";
 
 const inputClass =
   "w-full border border-gray-300 rounded px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100";

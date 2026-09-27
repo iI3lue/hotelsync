@@ -1,7 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
+import useSWR from "swr";
 import type { BookingRef } from "@/lib/api";
+import { postJson } from "@/lib/api-client";
 import { useRoomNames } from "@/lib/use-room-names";
 
 interface BookingsAutoTableProps {
@@ -19,11 +21,15 @@ function statusBadge(status: string): string {
   return "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200";
 }
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+async function fetchBookings(
+  hotelId: string,
+  date: string,
+  status: StatusFilter
+): Promise<BookingRef[]> {
+  const params = new URLSearchParams({ hotel_id: hotelId, date });
+  if (status !== "all") params.set("status", status);
+  const res = await fetch(`/api/booking/bookings?${params.toString()}`, {
+    signal: AbortSignal.timeout(3000),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
@@ -33,48 +39,47 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
 }
 
 export default function BookingsAutoTable({ hotelId, date }: BookingsAutoTableProps) {
-  const [bookings, setBookings] = useState<BookingRef[] | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
   const [status, setStatus] = useState<StatusFilter>("all");
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const roomNames = useRoomNames(hotelId);
 
-  const load = useCallback(async () => {
-    setError(null);
-    try {
-      const params = new URLSearchParams({ hotel_id: hotelId, date });
-      if (status !== "all") params.set("status", status);
-      const res = await fetch(`/api/booking/bookings?${params.toString()}`);
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || `Error ${res.status}`);
-      }
-      setBookings(await res.json());
-      setUpdatedAt(new Date().toLocaleTimeString("es-CO"));
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudieron cargar las reservas");
-    } finally {
-      setLoading(false);
+  const {
+    data: bookings,
+    error: swrError,
+    isLoading,
+    isValidating,
+    mutate,
+  } = useSWR<BookingRef[]>(
+    ["bookings", hotelId, date, status],
+    ([, h, d, s]: [string, string, string, StatusFilter]) =>
+      fetchBookings(h as string, d as string, s as StatusFilter),
+    {
+      refreshInterval: 20000,
+      dedupingInterval: 5000,
+      revalidateOnFocus: false,
     }
-  }, [hotelId, date, status]);
+  );
+  const error = swrError instanceof Error ? swrError.message : null;
 
   useEffect(() => {
-    setLoading(true);
-    load();
-  }, [load]);
-
-  useEffect(() => {
-    const t = setInterval(load, 20000);
-    return () => clearInterval(t);
-  }, [load]);
+    if (bookings) setUpdatedAt(new Date().toLocaleTimeString("es-CO"));
+  }, [bookings]);
 
   const handleTransition = async (bookingId: string, action: "confirm" | "cancel") => {
     setBusy(bookingId);
-    setError(null);
     setNotice(null);
+    const previous = bookings;
+    const nextStatus = action === "confirm" ? "confirmed" : "cancelled";
+    // Optimista: la fila cambia al instante; rollback si falla.
+    await mutate(
+      (rows) =>
+        rows?.map((b) =>
+          b.booking_id === bookingId ? { ...b, status: nextStatus } : b
+        ),
+      false
+    );
     try {
       await postJson(`/api/booking/bookings/${bookingId}/${action}`, {});
       setNotice(
@@ -82,15 +87,18 @@ export default function BookingsAutoTable({ hotelId, date }: BookingsAutoTablePr
           ? `Reserva ${bookingId.slice(0, 8)}… confirmada (inventario reservado, llegará a Front Desk por evento).`
           : `Reserva ${bookingId.slice(0, 8)}… cancelada.`
       );
-      await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo actualizar la reserva");
+      await mutate(previous, false);
+      setNotice(null);
+      void mutate();
+      return;
     } finally {
       setBusy(null);
     }
+    void mutate();
   };
 
-  if (loading) {
+  if (isLoading && !bookings) {
     return (
       <p role="status" className="text-gray-500 dark:text-gray-400">
         Cargando reservas automáticamente…
@@ -104,7 +112,7 @@ export default function BookingsAutoTable({ hotelId, date }: BookingsAutoTablePr
         {error ? (
           <p role="alert" className="mb-4 rounded bg-red-50 p-3 text-sm text-red-800 dark:bg-red-900/30 dark:text-red-200">
             {error}{" "}
-            <button type="button" onClick={load} className="underline underline-offset-2">
+            <button type="button" onClick={() => void mutate()} className="underline underline-offset-2">
               Reintentar
             </button>
           </p>
@@ -134,7 +142,7 @@ export default function BookingsAutoTable({ hotelId, date }: BookingsAutoTablePr
         ))}
         <button
           type="button"
-          onClick={load}
+          onClick={() => void mutate()}
           className="ml-auto rounded border border-gray-300 px-3 py-1.5 text-sm font-medium transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 touch-manipulation dark:border-gray-600 dark:hover:bg-gray-700"
         >
           Actualizar ahora
@@ -144,6 +152,7 @@ export default function BookingsAutoTable({ hotelId, date }: BookingsAutoTablePr
       {updatedAt ? (
         <p role="status" className="mb-3 text-xs text-gray-500 tabular-nums dark:text-gray-400">
           Fuente: Booking Service (todas las recién creadas, pending incluidas). Actualizado {updatedAt} · auto cada 20s.
+          {isValidating ? " · actualizando…" : ""}
         </p>
       ) : null}
 
@@ -188,7 +197,7 @@ export default function BookingsAutoTable({ hotelId, date }: BookingsAutoTablePr
                         <button
                           type="button"
                           disabled={busy === b.booking_id}
-                          onClick={() => handleTransition(b.booking_id, "confirm")}
+                          onClick={() => void handleTransition(b.booking_id, "confirm")}
                           className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
                         >
                           Confirmar
@@ -196,7 +205,7 @@ export default function BookingsAutoTable({ hotelId, date }: BookingsAutoTablePr
                         <button
                           type="button"
                           disabled={busy === b.booking_id}
-                          onClick={() => handleTransition(b.booking_id, "cancel")}
+                          onClick={() => void handleTransition(b.booking_id, "cancel")}
                           className="rounded border border-gray-300 px-2 py-1 text-xs font-medium hover:bg-gray-100 dark:border-gray-600 dark:hover:bg-gray-700 disabled:opacity-50"
                         >
                           Cancelar

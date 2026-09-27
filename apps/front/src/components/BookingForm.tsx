@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import type { Booking } from "@/lib/api";
+import { postJson } from "@/lib/api-client";
 import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 
 interface BookingFormProps {
@@ -26,19 +27,6 @@ function plusOneDay(dateIso: string): string {
   const d = new Date(`${dateIso}T12:00:00`);
   d.setDate(d.getDate() + 1);
   return d.toISOString().slice(0, 10);
-}
-
-async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || `Error ${res.status}`);
-  }
-  return res.json();
 }
 
 export default function BookingForm({ hotelId, roomTypeId, date }: BookingFormProps) {

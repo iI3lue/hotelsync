@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import useSWR from "swr";
 import type { Availability, RoomType } from "@/lib/api";
-import { formatDate } from "@/lib/api";
+import { formatDate } from "@/lib/format";
 import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 
 interface AvailabilityFormProps {

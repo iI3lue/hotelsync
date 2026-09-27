@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { createHotel } from "@/lib/api";
+import { createHotel } from "@/lib/api-client";
 
 const inputClass =
   "w-full border border-gray-300 rounded px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100";

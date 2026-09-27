@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { blockInventory } from "@/lib/api";
+import { blockInventory } from "@/lib/api-client";
 import type { RoomType } from "@/lib/api";
 import DatePicker from "@/components/DatePicker";
 

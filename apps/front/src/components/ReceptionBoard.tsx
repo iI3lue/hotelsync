@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { BookingRef } from "@/lib/api";
+import { postJson } from "@/lib/api-client";
 import { useRoomNames } from "@/lib/use-room-names";
 
 interface ReceptionBoardProps {
@@ -12,19 +13,6 @@ interface ReceptionBoardProps {
 const inputClass =
   "rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 touch-manipulation dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100";
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.message || `Error ${res.status}`);
-  }
-  return res.json();
-}
-
 export default function ReceptionBoard({ hotelId, date }: ReceptionBoardProps) {
   const [arrivals, setArrivals] = useState<BookingRef[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -34,27 +22,31 @@ export default function ReceptionBoard({ hotelId, date }: ReceptionBoardProps) {
   const [notice, setNotice] = useState<string | null>(null);
   const roomNames = useRoomNames(hotelId);
 
-  const load = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const res = await fetch(
-        `/api/front-desk/arrivals?hotel_id=${encodeURIComponent(hotelId)}&date=${encodeURIComponent(date)}`
-      );
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        throw new Error(err.message || `Error ${res.status}`);
+  const load = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(
+          `/api/front-desk/arrivals?hotel_id=${encodeURIComponent(hotelId)}&date=${encodeURIComponent(date)}`,
+          { signal: AbortSignal.timeout(3000) }
+        );
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          throw new Error(err.message || `Error ${res.status}`);
+        }
+        setArrivals(await res.json());
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "No se pudieron cargar las llegadas");
+      } finally {
+        if (!silent) setLoading(false);
       }
-      setArrivals(await res.json());
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudieron cargar las llegadas");
-    } finally {
-      setLoading(false);
-    }
-  }, [hotelId, date]);
+    },
+    [hotelId, date]
+  );
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
 
   const handleCheckIn = async (bookingId: string) => {
@@ -65,17 +57,17 @@ export default function ReceptionBoard({ hotelId, date }: ReceptionBoardProps) {
     }
     setBusy(bookingId);
     setError(null);
-    setNotice(null);
     try {
       await postJson("/api/front-desk/check-in", {
         booking_id: bookingId,
         physical_room_number: room,
       });
+      // Optimista: el aviso sale al instante; la lista se revalida en fondo.
       setNotice(`Check-in OK: reserva ${bookingId.slice(0, 8)}… en habitación ${room}`);
-      await load();
+      setBusy(null);
+      void load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo hacer el check-in");
-    } finally {
       setBusy(null);
     }
   };
@@ -83,14 +75,14 @@ export default function ReceptionBoard({ hotelId, date }: ReceptionBoardProps) {
   const handleCheckOut = async (bookingId: string) => {
     setBusy(bookingId);
     setError(null);
-    setNotice(null);
     try {
       await postJson("/api/front-desk/check-out", { booking_id: bookingId });
+      // Optimista: el aviso sale al instante; la lista se revalida en fondo.
       setNotice(`Check-out OK: reserva ${bookingId.slice(0, 8)}… (checkout.completed emitido)`);
-      await load();
+      setBusy(null);
+      void load(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : "No se pudo hacer el check-out");
-    } finally {
       setBusy(null);
     }
   };
@@ -127,13 +119,13 @@ export default function ReceptionBoard({ hotelId, date }: ReceptionBoardProps) {
             Este tablero solo muestra confirmed del read model de Front Desk. Mirá la
             pestaña Reservas para ver las pending recién creadas en Booking.
           </p>
-          <button
-            type="button"
-            onClick={load}
-            className="mt-4 rounded border border-gray-300 px-3 py-2 text-sm font-medium transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 touch-manipulation dark:border-gray-600 dark:hover:bg-gray-700"
-          >
-            Reintentar
-          </button>
+            <button
+              type="button"
+              onClick={() => void load()}
+              className="mt-4 rounded border border-gray-300 px-3 py-2 text-sm font-medium transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 touch-manipulation dark:border-gray-600 dark:hover:bg-gray-700"
+            >
+              Reintentar
+            </button>
         </div>
       ) : (
         <div>

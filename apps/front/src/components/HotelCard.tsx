@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { memo } from "react";
 import type { Hotel } from "@/lib/api";
-import { formatPrice, minRate } from "@/lib/api";
+import { formatPrice, minRate } from "@/lib/format";
 
 function initials(name: string): string {
   return name

@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { DayPicker } from "react-day-picker";
 import "react-day-picker/style.css";
 import { es } from "react-day-picker/locale";
+import { prefetchMonth, useMonthAvailability } from "@/lib/use-availability";
 
 export function toIsoDate(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, "0");
@@ -15,16 +16,6 @@ export function fromIsoDate(iso: string): Date | undefined {
   const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
   if (!m) return undefined;
   return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]), 12);
-}
-
-function monthDays(month: Date): Date[] {
-  const days: Date[] = [];
-  const d = new Date(month.getFullYear(), month.getMonth(), 1, 12);
-  while (d.getMonth() === month.getMonth()) {
-    days.push(new Date(d));
-    d.setDate(d.getDate() + 1);
-  }
-  return days;
 }
 
 interface AvailabilityCalendarProps {
@@ -56,46 +47,19 @@ export default function AvailabilityCalendar({
   const [month, setMonth] = useState<Date>(
     () => selectedDate ?? new Date(today.getFullYear(), today.getMonth(), 1, 12)
   );
-  const [stock, setStock] = useState<Record<string, number>>({});
-  const [loadingMonth, setLoadingMonth] = useState(false);
-  const cache = useRef(new Map<string, number>());
+  // Stock con caché compartida entre calendarios, concurrencia acotada
+  // y cancelación al navegar rápido (ver lib/use-availability).
+  const { stock, loading: loadingMonth } = useMonthAvailability(
+    roomTypeId,
+    month.getFullYear(),
+    month.getMonth()
+  );
 
+  // Precarga el mes siguiente en background cuando hay banda libre.
   useEffect(() => {
     if (!roomTypeId) return;
-    let cancelled = false;
-    const days = monthDays(month).map(toIsoDate);
-    const missing = days.filter((iso) => !cache.current.has(`${roomTypeId}:${iso}`));
-    if (missing.length === 0) {
-      const next: Record<string, number> = {};
-      for (const iso of days) next[iso] = cache.current.get(`${roomTypeId}:${iso}`) ?? 0;
-      setStock(next);
-      return;
-    }
-    setLoadingMonth(true);
-    Promise.allSettled(
-      missing.map(async (iso) => {
-        const res = await fetch(
-          `/api/rate/availability?room_type_id=${encodeURIComponent(roomTypeId)}&date=${encodeURIComponent(iso)}`
-        );
-        if (!res.ok) throw new Error(`Error ${res.status}`);
-        const data = (await res.json()) as { available?: number };
-        return { iso, available: Number(data.available ?? 0) };
-      })
-    ).then((results) => {
-      if (cancelled) return;
-      for (const r of results) {
-        if (r.status === "fulfilled") {
-          cache.current.set(`${roomTypeId}:${r.value.iso}`, r.value.available);
-        }
-      }
-      const next: Record<string, number> = {};
-      for (const iso of days) next[iso] = cache.current.get(`${roomTypeId}:${iso}`) ?? 0;
-      setStock(next);
-      setLoadingMonth(false);
-    });
-    return () => {
-      cancelled = true;
-    };
+    const next = new Date(month.getFullYear(), month.getMonth() + 1, 1, 12);
+    prefetchMonth(roomTypeId, next.getFullYear(), next.getMonth());
   }, [roomTypeId, month]);
 
   const { availableDays, unavailableDays } = useMemo(() => {
