@@ -91,6 +91,11 @@ export default function SearchBar({
           max={10}
           value={guests}
           onChange={(e) => setGuests(e.target.value)}
+          onBlur={() => {
+            const n = Number(guests);
+            if (!Number.isFinite(n) || n < 1) setGuests("1");
+            else if (n > 10) setGuests("10");
+          }}
           className={`${fieldClass} tabular-nums`}
         />
       </div>

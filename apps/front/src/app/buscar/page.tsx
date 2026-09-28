@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { fetchHotels, filterHotels, minRate } from "@/lib/api";
+import { fetchHotels, filterHotels, minRate, rankHotelsByRelevance, suggestHotel } from "@/lib/api";
 import EmptyState from "@/components/EmptyState";
 import HotelCard from "@/components/HotelCard";
 import SearchBar from "@/components/SearchBar";
@@ -81,13 +81,23 @@ async function BuscarResults({ params }: { params: BuscarParams }) {
         )
       : filtered;
 
-  const visible = [...guestFiltered].sort((a, b) => {
-    if (params.sort === "price-asc") return (minRate(a) ?? Infinity) - (minRate(b) ?? Infinity);
-    if (params.sort === "price-desc") return (minRate(b) ?? -Infinity) - (minRate(a) ?? -Infinity);
-    return 0;
-  });
+  const visible =
+    params.sort === "price-asc"
+      ? [...guestFiltered].sort(
+          (a, b) => (minRate(a) ?? Infinity) - (minRate(b) ?? Infinity)
+        )
+      : params.sort === "price-desc"
+        ? [...guestFiltered].sort(
+            (a, b) => (minRate(b) ?? -Infinity) - (minRate(a) ?? -Infinity)
+          )
+        : rankHotelsByRelevance(guestFiltered, params.city);
 
   const sort = params.sort ?? "relevance";
+
+  const suggestion =
+    visible.length === 0 && params.city
+      ? suggestHotel(hotels, params.city)
+      : null;
 
   return (
     <div>
@@ -152,13 +162,37 @@ async function BuscarResults({ params }: { params: BuscarParams }) {
         ))}
       </div>
 
-      {visible.length === 0 ? (
-        <EmptyState
-          title="Sin resultados para esta búsqueda"
-          description="Probá con otra ciudad, quitá algún filtro o ampliá el rango de fechas."
-          actionHref="/buscar"
-          actionLabel="Limpiar búsqueda"
-        />
+            {visible.length === 0 ? (
+          suggestion ? (
+            <div className="rounded-lg bg-white px-6 py-12 text-center shadow-md dark:bg-gray-800">
+              <h2 className="mb-2 text-xl font-semibold text-balance">
+                Sin resultados para “{params.city}”
+              </h2>
+              <p className="mx-auto mb-6 max-w-md break-words text-gray-600 dark:text-gray-300">
+                ¿Quisiste decir{" "}
+                <a
+                  href={`/buscar?city=${encodeURIComponent(suggestion.city)}`}
+                  className="font-medium text-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-400"
+                >
+                  {suggestion.city}
+                </a>
+                ?
+              </p>
+              <a
+                href="/buscar"
+                className="inline-block rounded bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 touch-manipulation"
+              >
+                Limpiar búsqueda
+              </a>
+            </div>
+          ) : (
+            <EmptyState
+              title="Sin resultados para esta búsqueda"
+              description="Probá con otra ciudad, quitá algún filtro o ampliá el rango de fechas."
+              actionHref="/buscar"
+              actionLabel="Limpiar búsqueda"
+            />
+          )
       ) : (
         <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
           {visible.map((hotel) => (

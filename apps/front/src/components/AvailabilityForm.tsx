@@ -103,10 +103,8 @@ export default function AvailabilityForm({
             />
           )}
         </div>
-        <div>
-          <span id="availability-date-label" className={labelClass}>
-            Fecha
-          </span>
+        <fieldset className="min-w-0">
+          <legend className={labelClass}>Fecha</legend>
           <AvailabilityCalendar
             roomTypeId={roomId || undefined}
             selected={date || undefined}
@@ -117,7 +115,7 @@ export default function AvailabilityForm({
               ? "Los días en verde tienen habitaciones libres."
               : "Elegí un tipo de habitación para ver los días libres."}
           </p>
-        </div>
+        </fieldset>
         <button
           type="submit"
           disabled={isPending || isLoading || !roomId || !date}
@@ -144,9 +142,8 @@ export default function AvailabilityForm({
             </h3>
             {selectedRoom ? (
               <p className="mb-2 text-sm text-gray-600 dark:text-gray-300">
-                {selectedRoom.name} · hotel{" "}
-                <span translate="no">HotelSync</span>
-                <span className="sr-only">ID de hotel {hotelId}</span>
+                {selectedRoom.name} · máx. {selectedRoom.capacity}{" "}
+                {selectedRoom.capacity === 1 ? "huésped" : "huéspedes"}
               </p>
             ) : null}
             <p className="tabular-nums">
@@ -155,20 +152,15 @@ export default function AvailabilityForm({
                 {data.available}
               </span>
             </p>
-            <p className="tabular-nums">
-              Habitaciones bloqueadas:{" "}
-              <span className="font-bold text-orange-600 dark:text-orange-400">
-                {data.blocked}
-              </span>
-            </p>
             {data.available === 0 ? (
               <p className="mt-2 font-semibold text-red-600 dark:text-red-400">
                 No hay habitaciones disponibles para esta fecha. Probá con otro
                 día.
               </p>
             ) : data.available <= 2 ? (
-              <p className="mt-2 font-semibold text-red-600 dark:text-red-400">
-                ¡Quedan solo {data.available}! Reservá antes de que se agoten.
+              <p className="mt-2 font-semibold text-amber-700 dark:text-amber-300">
+                ¡Quedan solo {data.available}! Elegí tu día y continuá con la
+                reserva.
               </p>
             ) : null}
             {data.available > 0 && submitted ? (

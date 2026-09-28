@@ -56,7 +56,7 @@ export default async function HotelDetailPage({
         </a>
         <a
           href={`/reservas/nueva?hotel=${encodeURIComponent(id)}`}
-          className="inline-block rounded border border-green-600 px-4 py-2 font-medium text-green-700 transition-colors hover:bg-green-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 touch-manipulation dark:text-green-400 dark:hover:bg-gray-800"
+          className="inline-block rounded px-4 py-2 font-medium text-green-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 touch-manipulation dark:text-green-400"
         >
           Reservar ahora
         </a>

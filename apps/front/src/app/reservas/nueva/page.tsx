@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import Breadcrumbs from "@/components/Breadcrumbs";
 import BookingForm from "@/components/BookingForm";
-import NuevaReservaSetup from "@/components/NuevaReservaSetup";
-import { fetchRoomTypes } from "@/lib/api";
+import AvailabilityForm from "@/components/AvailabilityForm";
+import { fetchHotelById, fetchRoomTypes } from "@/lib/api";
 
 export const metadata: Metadata = {
   title: "Nueva reserva en HotelSync",
@@ -17,28 +17,31 @@ export default async function NuevaReservaPage({
   const { hotel, room_type_id, date } = await searchParams;
   const ready = Boolean(hotel && room_type_id && date);
 
-  let roomTypes: Awaited<ReturnType<typeof fetchRoomTypes>> = [];
-  if (hotel && !ready) {
-    try {
-      roomTypes = await fetchRoomTypes(hotel);
-    } catch {
-      roomTypes = [];
-    }
-  }
+  const [hotelData, roomTypes] = hotel
+    ? await Promise.all([
+        fetchHotelById(hotel).catch(() => null),
+        fetchRoomTypes(hotel).catch(() => []),
+      ])
+    : [null, []];
+  const roomType = roomTypes.find((r) => r.room_type_id === room_type_id);
 
   return (
     <div>
       <Breadcrumbs items={[{ label: "Reserva" }]} />
       <h1 className="mb-2 text-balance text-3xl font-bold">Tu reserva</h1>
       <p className="mb-6 max-w-2xl break-words text-gray-600 dark:text-gray-300">
-        Reserva directa sobre Booking Service (BK-1): se crea en estado{" "}
-        <code className="rounded bg-gray-100 px-1 dark:bg-gray-700">pending</code>{" "}
-        y se confirma con bloqueo optimista para evitar sobreventa.
+        Elegí tus fechas y confirmá: tu habitación queda reservada al instante,
+        sin sobreventa.
       </p>
-      {ready ? (
-        <BookingForm hotelId={hotel!} roomTypeId={room_type_id!} date={date!} />
+      {ready && roomType ? (
+        <BookingForm
+          hotelId={hotel!}
+          hotelName={hotelData?.name ?? "Tu hotel"}
+          roomType={roomType}
+          date={date!}
+        />
       ) : hotel ? (
-        <NuevaReservaSetup
+        <AvailabilityForm
           hotelId={hotel}
           roomTypes={roomTypes}
           initialRoomTypeId={room_type_id ?? ""}
@@ -53,7 +56,7 @@ export default async function NuevaReservaPage({
             Falta el hotel. Empezá eligiendo disponibilidad desde el{" "}
             <a
               href="/"
-              className="text-blue-600 hover:underline dark:text-blue-400"
+              className="text-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-400"
             >
               listado de hoteles
             </a>

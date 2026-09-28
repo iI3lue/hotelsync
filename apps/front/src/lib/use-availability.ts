@@ -1,14 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { fetchAvailability } from "./api-client";
-
-const CONCURRENCY = 6;
+import { fetchAvailabilityRange } from "./api-client";
 
 /** Caché compartida entre todos los calendarios de la página. */
 const sharedCache = new Map<string, number>();
-/** Deduplica fetches concurrentes del mismo día. */
-const inflight = new Map<string, Promise<number>>();
+/** Deduplica fetches concurrentes del mismo mes. */
+const inflightMonths = new Map<string, Promise<Record<string, number>>>();
 
 export function toMonthDays(year: number, monthIndex: number): string[] {
   const days: string[] = [];
@@ -22,38 +20,66 @@ export function toMonthDays(year: number, monthIndex: number): string[] {
   return days;
 }
 
-function fetchDay(roomTypeId: string, iso: string): Promise<number> {
-  const key = `${roomTypeId}:${iso}`;
-  const hit = sharedCache.get(key);
-  if (hit !== undefined) return Promise.resolve(hit);
-  const ongoing = inflight.get(key);
+function monthKey(roomTypeId: string, year: number, monthIndex: number): string {
+  return `${roomTypeId}:${year}-${monthIndex}`;
+}
+
+function stockFromCache(
+  roomTypeId: string,
+  days: string[]
+): Record<string, number> | null {
+  const next: Record<string, number> = {};
+  for (const iso of days) {
+    const hit = sharedCache.get(`${roomTypeId}:${iso}`);
+    if (hit === undefined) return null;
+    next[iso] = hit;
+  }
+  return next;
+}
+
+/**
+ * Mes entero en UN solo request al endpoint de rango. Los días ya cacheados
+ * se sirven al instante; si falta alguno se trae el mes completo (superset
+ * idempotente) y se guarda día por día en la caché compartida.
+ */
+function fetchMonth(
+  roomTypeId: string,
+  year: number,
+  monthIndex: number
+): Promise<Record<string, number>> {
+  const days = toMonthDays(year, monthIndex);
+  const cached = stockFromCache(roomTypeId, days);
+  if (cached) return Promise.resolve(cached);
+
+  const key = monthKey(roomTypeId, year, monthIndex);
+  const ongoing = inflightMonths.get(key);
   if (ongoing) return ongoing;
-  const p = fetchAvailability(roomTypeId, iso)
-    .then((data) => {
-      const n = Number(data.available ?? 0);
-      sharedCache.set(key, n);
-      return n;
+
+  const p = fetchAvailabilityRange(roomTypeId, days[0], days[days.length - 1])
+    .then((range) => {
+      const next: Record<string, number> = {};
+      for (const iso of days) {
+        const n = Number(range[iso]?.available ?? 0);
+        sharedCache.set(`${roomTypeId}:${iso}`, n);
+        next[iso] = n;
+      }
+      return next;
     })
     .finally(() => {
-      inflight.delete(key);
+      inflightMonths.delete(key);
     });
-  inflight.set(key, p);
+  inflightMonths.set(key, p);
   return p;
 }
 
-/** Precarga un mes en background (los días ya cacheados se saltean). */
+/** Precarga un mes en background (los meses ya cacheados se saltean). */
 export function prefetchMonth(
   roomTypeId: string,
   year: number,
   monthIndex: number
 ): void {
   const run = () => {
-    for (const iso of toMonthDays(year, monthIndex)) {
-      const key = `${roomTypeId}:${iso}`;
-      if (!sharedCache.has(key) && !inflight.has(key)) {
-        fetchDay(roomTypeId, iso).catch(() => undefined);
-      }
-    }
+    fetchMonth(roomTypeId, year, monthIndex).catch(() => undefined);
   };
   if (typeof window !== "undefined" && "requestIdleCallback" in window) {
     (window as Window & { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(run);
@@ -63,8 +89,8 @@ export function prefetchMonth(
 }
 
 /**
- * Stock del mes para pintar el calendario, con caché compartida entre
- * calendarios, concurrencia acotada y cancelación al navegar rápido.
+ * Stock del mes para pintar el calendario: un solo request por mes,
+ * caché compartida entre calendarios y cancelación al navegar rápido.
  */
 export function useMonthAvailability(
   roomTypeId: string | undefined,
@@ -85,41 +111,26 @@ export function useMonthAvailability(
     let cancelled = false;
     const days = toMonthDays(year, monthIndex);
 
-    const next: Record<string, number> = {};
-    const missing: string[] = [];
-    for (const iso of days) {
-      const hit = sharedCache.get(`${roomTypeId}:${iso}`);
-      if (hit !== undefined) next[iso] = hit;
-      else missing.push(iso);
-    }
     // Pinta al instante lo cacheado (incluye lo del otro calendario).
-    if (my === seq.current) setStock(next);
-    if (missing.length === 0) {
+    const cached = stockFromCache(roomTypeId, days);
+    if (my === seq.current) setStock(cached ?? {});
+    if (cached) {
       setLoading(false);
       return;
     }
     setLoading(true);
 
-    let i = 0;
-    const workers = Array.from(
-      { length: Math.min(CONCURRENCY, missing.length) },
-      async () => {
-        while (!cancelled && i < missing.length) {
-          const iso = missing[i++];
-          try {
-            const n = await fetchDay(roomTypeId, iso);
-            if (!cancelled && my === seq.current) {
-              setStock((prev) => (prev[iso] === n ? prev : { ...prev, [iso]: n }));
-            }
-          } catch {
-            // El día queda sin pintar; se reintenta al volver al mes.
-          }
+    fetchMonth(roomTypeId, year, monthIndex)
+      .then((next) => {
+        if (!cancelled && my === seq.current) {
+          setStock(next);
+          setLoading(false);
         }
-      }
-    );
-    void Promise.all(workers).then(() => {
-      if (!cancelled && my === seq.current) setLoading(false);
-    });
+      })
+      .catch(() => {
+        // El mes queda sin pintar; se reintenta al volver a él.
+        if (!cancelled && my === seq.current) setLoading(false);
+      });
 
     return () => {
       cancelled = true;

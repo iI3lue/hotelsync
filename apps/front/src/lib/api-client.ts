@@ -76,6 +76,20 @@ export async function fetchAvailability(
   );
 }
 
+/**
+ * Disponibilidad de un rango en UN solo request (el calendario pide el mes
+ * entero en vez de un GET por día). Máximo 62 noches por llamada.
+ */
+export async function fetchAvailabilityRange(
+  roomTypeId: string,
+  from: string,
+  to: string
+): Promise<Record<string, Availability>> {
+  return clientFetch<Record<string, Availability>>(
+    `/api/rate/availability/range?room_type_id=${encodeURIComponent(roomTypeId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`
+  );
+}
+
 export async function blockInventory(data: {
   room_type_id: string;
   date: string;

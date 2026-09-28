@@ -8,7 +8,7 @@ import type { HotelFilters } from "./format";
  * (helpers puros); importar este módulo en el browser rompe el bundle.
  */
 export type { HotelFilters };
-export { filterHotels, formatDate, formatPrice, minRate } from "./format";
+export { filterHotels, formatDate, formatPrice, matchScore, minRate, normalizeText, rankHotelsByRelevance, suggestHotel } from "./format";
 
 const PROPERTY_API = process.env.NEXT_PUBLIC_PROPERTY_API_URL || "http://localhost:3001/v1";
 const RATE_API = process.env.NEXT_PUBLIC_RATE_API_URL || "http://localhost:3002/v1";

@@ -12,17 +12,24 @@ export default function RoomTypeCard({ roomType }: { roomType: RoomType }) {
         ${Number(roomType.base_rate).toLocaleString("es-AR")} / noche
       </p>
       {roomType.amenities && roomType.amenities.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+        <ul className="mb-4 flex flex-wrap gap-2">
           {roomType.amenities.map((amenity) => (
-            <span
+            <li
               key={amenity}
               className="bg-gray-100 text-gray-700 text-sm px-2 py-1 rounded dark:bg-gray-700 dark:text-gray-200"
             >
               {amenity.replace(/_/g, " ")}
-            </span>
+            </li>
           ))}
-        </div>
+        </ul>
       )}
+      <a
+        href={`/hotels/${encodeURIComponent(roomType.hotel_id)}/availability?room_type_id=${encodeURIComponent(roomType.room_type_id)}`}
+        aria-label={`Ver disponibilidad de ${roomType.name}`}
+        className="inline-block rounded bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 touch-manipulation"
+      >
+        Ver disponibilidad
+      </a>
     </div>
   );
 }

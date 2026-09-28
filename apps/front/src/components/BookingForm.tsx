@@ -1,19 +1,19 @@
 "use client";
 
 import { useState } from "react";
-import type { Booking } from "@/lib/api";
+import type { Booking, RoomType } from "@/lib/api";
 import { postJson } from "@/lib/api-client";
+import { formatDate, formatPrice } from "@/lib/format";
 import AvailabilityCalendar from "@/components/AvailabilityCalendar";
 import Spinner from "@/components/Spinner";
 
 interface BookingFormProps {
   hotelId: string;
-  roomTypeId: string;
+  hotelName: string;
+  roomType: RoomType;
   date: string;
 }
 
-const inputClass =
-  "w-full rounded border border-gray-300 bg-white px-3 py-2 text-gray-900 touch-manipulation dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100";
 const labelClass =
   "block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200";
 
@@ -30,14 +30,26 @@ function plusOneDay(dateIso: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-export default function BookingForm({ hotelId, roomTypeId, date }: BookingFormProps) {
+function diffNights(checkInIso: string, checkOutIso: string): number {
+  const ms =
+    new Date(`${checkOutIso}T12:00:00`).getTime() -
+    new Date(`${checkInIso}T12:00:00`).getTime();
+  return Math.round(ms / 86400000);
+}
+
+export default function BookingForm({ hotelId, hotelName, roomType, date }: BookingFormProps) {
   const [guestId, setGuestId] = useState(newGuestId);
   const [checkIn, setCheckIn] = useState(date);
   const [checkOut, setCheckOut] = useState(date ? plusOneDay(date) : "");
-  const [total, setTotal] = useState("25500");
   const [booking, setBooking] = useState<Booking | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [copied, setCopied] = useState(false);
+
+  const rate = Number(roomType.base_rate);
+  const nights =
+    checkIn && checkOut ? diffNights(checkIn, checkOut) : 0;
+  const total = nights > 0 ? rate * nights : null;
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,16 +58,20 @@ export default function BookingForm({ hotelId, roomTypeId, date }: BookingFormPr
       setError("Elegí las fechas de check-in y check-out en el calendario");
       return;
     }
+    if (total === null) {
+      setError("El check-out tiene que ser posterior al check-in");
+      return;
+    }
     setSaving(true);
     try {
       const created = await postJson<Booking>("/api/booking/bookings", {
         guest_id: guestId,
         hotel_id: hotelId,
-        room_type_id: roomTypeId,
+        room_type_id: roomType.room_type_id,
         check_in: checkIn,
         check_out: checkOut,
         channel: "direct",
-        total_amount: Number(total),
+        total_amount: total,
       });
       setBooking(created);
     } catch (err) {
@@ -87,30 +103,76 @@ export default function BookingForm({ hotelId, roomTypeId, date }: BookingFormPr
     }
   };
 
+  const copyCode = async () => {
+    if (!booking) return;
+    try {
+      await navigator.clipboard.writeText(booking.booking_id);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopied(false);
+    }
+  };
+
+  const statusLabel =
+    booking?.status === "confirmed"
+      ? "confirmada"
+      : booking?.status === "cancelled"
+        ? "cancelada"
+        : "pendiente";
+  const statusTitle =
+    booking?.status === "confirmed"
+      ? "¡Reserva confirmada!"
+      : booking?.status === "cancelled"
+        ? "Reserva cancelada"
+        : "Reserva creada";
+
   return (
     <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-800">
       {!booking ? (
         <form onSubmit={handleCreate} className="space-y-4">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            Te asignamos un identificador de huésped automáticamente al crear
-            la reserva.
-          </p>
+          <div
+            aria-live="polite"
+            className="rounded bg-gray-50 p-4 text-sm dark:bg-gray-700"
+          >
+            <p className="font-semibold">
+              {hotelName} · {roomType.name}
+            </p>
+            {checkIn && checkOut && total !== null ? (
+              <>
+                <p className="mt-1 text-gray-600 dark:text-gray-300">
+                  {formatDate(checkIn)} → {formatDate(checkOut)} · {nights}{" "}
+                  {nights === 1 ? "noche" : "noches"}
+                </p>
+                <p className="mt-1 tabular-nums">
+                  {nights} × {formatPrice(rate)} ={" "}
+                  <span className="text-base font-bold">
+                    {formatPrice(total)}
+                  </span>
+                </p>
+              </>
+            ) : (
+              <p className="mt-1 text-gray-600 dark:text-gray-300">
+                Elegí las fechas para ver el total de tu estadía.
+              </p>
+            )}
+          </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <div>
-              <span className={labelClass}>Check-in</span>
+            <fieldset className="min-w-0">
+              <legend className={labelClass}>Check-in</legend>
               <AvailabilityCalendar
-                roomTypeId={roomTypeId}
+                roomTypeId={roomType.room_type_id}
                 selected={checkIn || undefined}
                 onSelect={(iso) => {
                   setCheckIn(iso);
                   if (checkOut && checkOut <= iso) setCheckOut("");
                 }}
               />
-            </div>
-            <div>
-              <span className={labelClass}>Check-out</span>
+            </fieldset>
+            <fieldset className="min-w-0">
+              <legend className={labelClass}>Check-out</legend>
               <AvailabilityCalendar
-                roomTypeId={roomTypeId}
+                roomTypeId={roomType.room_type_id}
                 selected={checkOut || undefined}
                 onSelect={setCheckOut}
                 minDate={checkIn || undefined}
@@ -118,22 +180,7 @@ export default function BookingForm({ hotelId, roomTypeId, date }: BookingFormPr
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 Los días en verde tienen habitaciones libres.
               </p>
-            </div>
-          </div>
-          <div>
-            <label htmlFor="total-amount" className={labelClass}>
-              Monto total
-            </label>
-            <input
-              id="total-amount"
-              type="number"
-              min="0"
-              step="0.01"
-              value={total}
-              onChange={(e) => setTotal(e.target.value)}
-              className={inputClass}
-              required
-            />
+            </fieldset>
           </div>
           <button
             type="submit"
@@ -145,11 +192,24 @@ export default function BookingForm({ hotelId, roomTypeId, date }: BookingFormPr
         </form>
       ) : (
         <div>
-          <h2 className="mb-2 text-xl font-semibold">Reserva {booking.status}</h2>
+          <h2 className="mb-2 text-xl font-semibold">{statusTitle}</h2>
+          {booking.status === "pending" ? (
+            <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
+              Tu lugar está apartado. Confirmá la reserva para asegurar la
+              habitación.
+            </p>
+          ) : null}
           <dl className="space-y-2 break-words text-sm">
-            <div className="flex gap-2">
-              <dt className="font-medium">ID:</dt>
+            <div className="flex flex-wrap items-center gap-2">
+              <dt className="font-medium">Código de reserva:</dt>
               <dd className="font-mono text-xs">{booking.booking_id}</dd>
+              <button
+                type="button"
+                onClick={copyCode}
+                className="rounded border border-gray-300 px-2 py-0.5 text-xs font-medium transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 touch-manipulation dark:border-gray-600 dark:hover:bg-gray-700"
+              >
+                {copied ? "¡Copiado!" : "Copiar"}
+              </button>
             </div>
             <div className="flex gap-2">
               <dt className="font-medium">Estado:</dt>
@@ -163,14 +223,20 @@ export default function BookingForm({ hotelId, roomTypeId, date }: BookingFormPr
                         : "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200"
                   }`}
                 >
-                  {booking.status}
+                  {statusLabel}
                 </span>
               </dd>
             </div>
             <div className="flex gap-2">
               <dt className="font-medium">Estadía:</dt>
               <dd>
-                {booking.check_in} → {booking.check_out}
+                {formatDate(booking.check_in)} → {formatDate(booking.check_out)}
+              </dd>
+            </div>
+            <div className="flex gap-2">
+              <dt className="font-medium">Total:</dt>
+              <dd className="tabular-nums font-semibold">
+                {formatPrice(booking.total_amount)}
               </dd>
             </div>
           </dl>
@@ -182,7 +248,7 @@ export default function BookingForm({ hotelId, roomTypeId, date }: BookingFormPr
                 disabled={saving}
                 className="btn-press rounded bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 touch-manipulation disabled:opacity-50"
               >
-                {saving ? <Spinner label="Procesando…" /> : "Confirmar (bloqueo optimista)"}
+                {saving ? <Spinner label="Procesando…" /> : "Confirmar reserva"}
               </button>
               <button
                 type="button"
@@ -215,9 +281,9 @@ export default function BookingForm({ hotelId, roomTypeId, date }: BookingFormPr
                 Reserva confirmada sin sobreventa
               </p>
               <p className="mt-1 text-sm text-green-800 dark:text-green-200">
-                RN-1, BK-4 del PRD. Ya figura en recepción del admin
-                automáticamente tras el evento. Presentá este ID en recepción
-                para el check-in.
+                {hotelName} · {roomType.name} · {formatDate(booking.check_in)} →{" "}
+                {formatDate(booking.check_out)}. Presentá el código de reserva
+                en recepción para el check-in.
               </p>
             </div>
           ) : null}
