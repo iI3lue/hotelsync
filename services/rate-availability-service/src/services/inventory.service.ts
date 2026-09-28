@@ -1,5 +1,12 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../middleware/error-handler.js";
+import {
+  AVAIL_TTL_SECONDS,
+  availKey,
+  cacheDel,
+  cacheGet,
+  cacheSet,
+} from "../lib/cache.js";
 
 function enumerateDates(startDate: string, endDate: string): Date[] {
   const dates: Date[] = [];
@@ -16,8 +23,17 @@ function formatDate(date: Date): string {
   return date.toISOString().slice(0, 10);
 }
 
+export interface DayAvailability {
+  available: number;
+  blocked: number;
+}
+
 export class InventoryService {
-  async getAvailability(roomTypeId: string, date: string) {
+  async getAvailability(roomTypeId: string, date: string): Promise<DayAvailability> {
+    const key = availKey(roomTypeId, date);
+    const hit = await cacheGet<DayAvailability>(key);
+    if (hit) return hit;
+
     const inventory = await prisma.inventory.findUnique({
       where: {
         room_type_id_date: {
@@ -27,14 +43,65 @@ export class InventoryService {
       },
     });
 
-    if (!inventory) {
-      return { available: 0, blocked: 0 };
+    const result: DayAvailability = !inventory
+      ? { available: 0, blocked: 0 }
+      : {
+          available: inventory.available_count,
+          blocked: inventory.blocked_count,
+        };
+    await cacheSet(key, result, AVAIL_TTL_SECONDS);
+    return result;
+  }
+
+  /**
+   * Disponibilidad de un rango en UNA sola query (el calendario pide el mes
+   * entero en vez de un GET por día). Máximo 62 noches por llamada.
+   * Los días sin fila de inventario se reportan {0, 0}. Lee la DB (fuente
+   * de verdad, siempre fresco) y calienta las claves por día de la caché.
+   */
+  async getAvailabilityRange(
+    roomTypeId: string,
+    from: string,
+    to: string
+  ): Promise<Record<string, DayAvailability>> {
+    const start = new Date(`${from}T00:00:00Z`);
+    const end = new Date(`${to}T00:00:00Z`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) {
+      throw new AppError(400, "to must be on or after from", "Bad Request");
+    }
+    const nights = Math.round((end.getTime() - start.getTime()) / 86400000) + 1;
+    if (nights > 62) {
+      throw new AppError(400, "range must be 62 nights or fewer", "Bad Request");
     }
 
-    return {
-      available: inventory.available_count,
-      blocked: inventory.blocked_count,
-    };
+    const rows = await prisma.inventory.findMany({
+      where: {
+        room_type_id: roomTypeId,
+        date: { gte: start, lte: end },
+      },
+      select: { date: true, available_count: true, blocked_count: true },
+    });
+    const byDate = new Map(
+      rows.map((r) => [
+        r.date.toISOString().slice(0, 10),
+        { available: r.available_count, blocked: r.blocked_count },
+      ])
+    );
+
+    const result: Record<string, DayAvailability> = {};
+    const cursor = new Date(start);
+    while (cursor <= end) {
+      const iso = cursor.toISOString().slice(0, 10);
+      result[iso] = byDate.get(iso) ?? { available: 0, blocked: 0 };
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+    // Calienta la caché por día para las lecturas unitarias.
+    await Promise.all(
+      Object.entries(result).map(([iso, day]) =>
+        cacheSet(availKey(roomTypeId, iso), day, AVAIL_TTL_SECONDS)
+      )
+    );
+    return result;
   }
 
   async block(roomTypeId: string, date: string, count: number) {
@@ -75,6 +142,9 @@ export class InventoryService {
         blocked_count: inventory.blocked_count + count,
       },
     });
+
+    // Invalidación inmediata (PRD): el próximo GET pega a la DB.
+    await cacheDel(availKey(roomTypeId, date));
 
     return {
       available: updated.available_count,
@@ -121,6 +191,9 @@ export class InventoryService {
       },
     });
 
+    // Invalidación inmediata (PRD): el próximo GET pega a la DB.
+    await cacheDel(availKey(roomTypeId, date));
+
     return {
       available: updated.available_count,
       blocked: updated.blocked_count,
@@ -136,6 +209,9 @@ export class InventoryService {
         },
       },
     });
+
+    // Invalidación inmediata (PRD): el próximo GET pega a la DB.
+    await cacheDel(availKey(roomTypeId, date));
 
     if (existing) {
       return prisma.inventory.update({
@@ -192,6 +268,11 @@ export class InventoryService {
       }
     });
 
+    // Invalidación inmediata de cada noche del rango (PRD).
+    await cacheDel(
+      ...dates.map((d) => availKey(roomTypeId, formatDate(d)))
+    );
+
     return { reserved: true, start_date: checkIn, end_date: checkOut, count };
   }
 
@@ -214,6 +295,11 @@ export class InventoryService {
         });
       }
     });
+
+    // Invalidación inmediata de cada noche del rango (PRD).
+    await cacheDel(
+      ...dates.map((d) => availKey(roomTypeId, formatDate(d)))
+    );
 
     return { released: true, start_date: checkIn, end_date: checkOut, count };
   }

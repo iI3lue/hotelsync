@@ -13,6 +13,20 @@ services:
       retries: 5
     restart: unless-stopped
 
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
   property-db:
     image: postgres:16-alpine
     environment:
@@ -121,8 +135,11 @@ services:
       NODE_ENV: production
       PORT: "3002"
       DATABASE_URL: postgresql://hotelsync:hotelsync_dev@rate-availability-db:5432/rate_availability_db
+      REDIS_URL: redis://redis:6379
     depends_on:
       rate-availability-db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
     restart: unless-stopped
 
@@ -253,3 +270,4 @@ volumes:
   housekeeping_data:
   billing_data:
   rabbitmq_data:
+  redis_data:

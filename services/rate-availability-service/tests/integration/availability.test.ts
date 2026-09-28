@@ -11,6 +11,7 @@ jest.mock("../../src/lib/prisma.js", () => ({
     $transaction: jest.fn(),
     inventory: {
       findUnique: jest.fn(),
+      findMany: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
     },
@@ -73,6 +74,50 @@ describe("Rate & Availability Service API", () => {
 
     it("should return 400 with missing params", async () => {
       const res = await request(app).get("/v1/availability");
+      expect(res.status).toBe(400);
+    });
+  });
+
+  describe("GET /v1/availability/range", () => {
+    it("should return one entry per night in a single query", async () => {
+      mockPrisma.inventory.findMany.mockResolvedValue([
+        {
+          date: new Date("2026-01-16T00:00:00Z"),
+          available_count: 4,
+          blocked_count: 0,
+        },
+      ]);
+
+      const res = await request(app)
+        .get("/v1/availability/range")
+        .query({
+          room_type_id: VALID_UUID,
+          from: "2026-01-15",
+          to: "2026-01-17",
+        });
+
+      expect(res.status).toBe(200);
+      expect(res.body["2026-01-15"]).toEqual({ available: 0, blocked: 0 });
+      expect(res.body["2026-01-16"]).toEqual({ available: 4, blocked: 0 });
+      expect(res.body["2026-01-17"]).toEqual({ available: 0, blocked: 0 });
+      expect(mockPrisma.inventory.findMany).toHaveBeenCalledTimes(1);
+    });
+
+    it("should return 400 with missing params", async () => {
+      const res = await request(app)
+        .get("/v1/availability/range")
+        .query({ room_type_id: VALID_UUID });
+      expect(res.status).toBe(400);
+    });
+
+    it("should return 400 for a range over 62 nights", async () => {
+      const res = await request(app)
+        .get("/v1/availability/range")
+        .query({
+          room_type_id: VALID_UUID,
+          from: "2026-01-01",
+          to: "2026-04-01",
+        });
       expect(res.status).toBe(400);
     });
   });

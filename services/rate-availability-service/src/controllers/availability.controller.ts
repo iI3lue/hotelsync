@@ -12,6 +12,24 @@ export class AvailabilityController {
     }
   }
 
+  async getRange(req: Request, res: Response, next: NextFunction) {
+    try {
+      const { room_type_id, from, to } = req.query as {
+        room_type_id: string;
+        from: string;
+        to: string;
+      };
+      const range = await inventoryService.getAvailabilityRange(
+        room_type_id,
+        from,
+        to
+      );
+      res.json(range);
+    } catch (err) {
+      next(err);
+    }
+  }
+
   async reserve(req: Request, res: Response, next: NextFunction) {
     try {
       const { room_type_id, check_in, check_out, count } = req.body as {
