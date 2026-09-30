@@ -12,6 +12,9 @@ interface BookingFormProps {
   hotelName: string;
   roomType: RoomType;
   date: string;
+  /** Fechas heredadas de la búsqueda (tienen prioridad sobre `date`). */
+  initialFrom?: string;
+  initialTo?: string;
 }
 
 const labelClass =
@@ -37,10 +40,19 @@ function diffNights(checkInIso: string, checkOutIso: string): number {
   return Math.round(ms / 86400000);
 }
 
-export default function BookingForm({ hotelId, hotelName, roomType, date }: BookingFormProps) {
+export default function BookingForm({
+  hotelId,
+  hotelName,
+  roomType,
+  date,
+  initialFrom,
+  initialTo,
+}: BookingFormProps) {
   const [guestId, setGuestId] = useState(newGuestId);
-  const [checkIn, setCheckIn] = useState(date);
-  const [checkOut, setCheckOut] = useState(date ? plusOneDay(date) : "");
+  const [checkIn, setCheckIn] = useState(initialFrom || date);
+  const [checkOut, setCheckOut] = useState(
+    initialTo || (date ? plusOneDay(date) : "")
+  );
   const [booking, setBooking] = useState<Booking | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -76,10 +88,17 @@ export default function BookingForm({ hotelId, hotelName, roomType, date }: Book
       setBooking(created);
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo crear la reserva";
+      const conflict = msg.includes("409") || msg.toLowerCase().includes("conflict");
+      const unavailable =
+        msg.toLowerCase().includes("available") ||
+        msg.toLowerCase().includes("disponib") ||
+        msg.toLowerCase().includes("inventory");
       setError(
-        msg.includes("409") || msg.toLowerCase().includes("conflict")
-          ? `${msg}. Fechas con alta demanda, probá otro rango.`
-          : msg
+        conflict
+          ? "Otra reserva tomó esta habitación mientras la elegías. Cambiá las fechas o el tipo de habitación y volvé a intentar."
+          : unavailable
+            ? "No hay habitaciones disponibles para esas fechas. Probá otro rango de fechas."
+            : `${msg}. Revisá los datos e intentá de nuevo.`
       );
     } finally {
       setSaving(false);
@@ -97,7 +116,13 @@ export default function BookingForm({ hotelId, hotelName, roomType, date }: Book
       );
       setBooking(updated);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "No se pudo actualizar la reserva");
+      const msg = err instanceof Error ? err.message : "No se pudo actualizar la reserva";
+      const conflict = msg.includes("409") || msg.toLowerCase().includes("conflict");
+      setError(
+        conflict
+          ? "La reserva cambió desde otro lado o el inventario ya no está disponible. Recargá la página para ver el estado actual."
+          : `${msg}. Intentá de nuevo.`
+      );
     } finally {
       setSaving(false);
     }
@@ -126,6 +151,12 @@ export default function BookingForm({ hotelId, hotelName, roomType, date }: Book
       : booking?.status === "cancelled"
         ? "Reserva cancelada"
         : "Reserva creada";
+  const statusHint =
+    booking?.status === "confirmed"
+      ? "Tu habitación quedó reservada. Guardá el código de reserva."
+      : booking?.status === "cancelled"
+        ? "La reserva se canceló y el inventario se liberó. Podés empezar una nueva búsqueda."
+        : "Tu lugar está apartado. Confirmá para asegurar la habitación.";
 
   return (
     <div className="rounded-lg bg-white p-6 shadow-md dark:bg-gray-800">
@@ -193,12 +224,9 @@ export default function BookingForm({ hotelId, hotelName, roomType, date }: Book
       ) : (
         <div>
           <h2 className="mb-2 text-xl font-semibold">{statusTitle}</h2>
-          {booking.status === "pending" ? (
-            <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
-              Tu lugar está apartado. Confirmá la reserva para asegurar la
-              habitación.
-            </p>
-          ) : null}
+          <p className="mb-3 text-sm text-gray-600 dark:text-gray-300">
+            {statusHint}
+          </p>
           <dl className="space-y-2 break-words text-sm">
             <div className="flex flex-wrap items-center gap-2">
               <dt className="font-medium">Código de reserva:</dt>
@@ -246,7 +274,7 @@ export default function BookingForm({ hotelId, hotelName, roomType, date }: Book
                 type="button"
                 onClick={() => handleTransition("confirm")}
                 disabled={saving}
-                className="btn-press rounded bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 touch-manipulation disabled:opacity-50"
+                className="btn-press rounded bg-green-600 px-4 py-2 font-medium text-white hover:bg-green-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-2 touch-manipulation disabled:opacity-50"
               >
                 {saving ? <Spinner label="Procesando…" /> : "Confirmar reserva"}
               </button>
