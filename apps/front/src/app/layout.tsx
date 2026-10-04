@@ -48,7 +48,7 @@ export default function RootLayout({
               >
                 HotelSync
               </a>
-              <nav aria-label="Principal" className="flex items-center gap-4">
+              <nav aria-label="Principal" className="flex flex-wrap items-center gap-x-4 gap-y-2">
                 <a
                   href="/buscar"
                   className="text-sm font-medium text-gray-700 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-gray-200 dark:hover:text-blue-400"
@@ -66,6 +66,12 @@ export default function RootLayout({
                   className="text-sm font-medium text-gray-700 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-gray-200 dark:hover:text-blue-400"
                 >
                   Administrar
+                </a>
+                <a
+                  href="/cuenta/entrar"
+                  className="text-sm font-medium text-gray-700 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-gray-200 dark:hover:text-blue-400"
+                >
+                  Mi cuenta
                 </a>
                 <ThemeToggle />
               </nav>

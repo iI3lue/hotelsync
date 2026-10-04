@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { BookingRef } from "@/lib/api";
-import { postJson } from "@/lib/api-client";
+import type { BookingRef, PhysicalRoom } from "@/lib/api";
+import { fetchPhysicalRooms, postJson } from "@/lib/api-client";
 import { useRoomNames } from "@/lib/use-room-names";
 
 interface ReceptionBoardProps {
@@ -20,6 +20,7 @@ export default function ReceptionBoard({ hotelId, date }: ReceptionBoardProps) {
   const [rooms, setRooms] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [catalog, setCatalog] = useState<PhysicalRoom[]>([]);
   const roomNames = useRoomNames(hotelId);
 
   const load = useCallback(
@@ -48,6 +49,12 @@ export default function ReceptionBoard({ hotelId, date }: ReceptionBoardProps) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useEffect(() => {
+    fetchPhysicalRooms(hotelId)
+      .then(setCatalog)
+      .catch(() => setCatalog([]));
+  }, [hotelId]);
 
   const handleCheckIn = async (bookingId: string) => {
     const room = (rooms[bookingId] || "").trim();
@@ -142,6 +149,9 @@ export default function ReceptionBoard({ hotelId, date }: ReceptionBoardProps) {
                 <span className="font-mono text-xs text-gray-500 dark:text-gray-400">
                   {b.booking_id.slice(0, 8)}…
                 </span>
+                {b.guest_name ? (
+                  <span className="text-sm font-medium">{b.guest_name}</span>
+                ) : null}
                 <span className="text-sm font-medium">
                   {roomNames[b.room_type_id] ?? "Habitación"}
                 </span>
@@ -164,8 +174,17 @@ export default function ReceptionBoard({ hotelId, date }: ReceptionBoardProps) {
                   onChange={(e) =>
                     setRooms((prev) => ({ ...prev, [b.booking_id]: e.target.value }))
                   }
+                  list={`catalog-${b.booking_id}`}
+                  autoComplete="off"
                   className={`${inputClass} w-44`}
                 />
+                <datalist id={`catalog-${b.booking_id}`}>
+                  {catalog.map((r) => (
+                    <option key={r.physical_room_id} value={r.room_number}>
+                      {r.roomType.name}
+                    </option>
+                  ))}
+                </datalist>
                 <button
                   type="button"
                   onClick={() => handleCheckIn(b.booking_id)}

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import type { Booking, RoomType } from "@/lib/api";
+import type { Booking, BookingCreated, RoomType } from "@/lib/api";
 import { postJson } from "@/lib/api-client";
 import { formatDate, formatPrice } from "@/lib/format";
 import AvailabilityCalendar from "@/components/AvailabilityCalendar";
@@ -19,13 +19,6 @@ interface BookingFormProps {
 
 const labelClass =
   "block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200";
-
-function newGuestId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return "00000000-0000-4000-8000-000000000000";
-}
 
 function plusOneDay(dateIso: string): string {
   const d = new Date(`${dateIso}T12:00:00`);
@@ -48,15 +41,17 @@ export default function BookingForm({
   initialFrom,
   initialTo,
 }: BookingFormProps) {
-  const [guestId, setGuestId] = useState(newGuestId);
+  const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
   const [checkIn, setCheckIn] = useState(initialFrom || date);
   const [checkOut, setCheckOut] = useState(
     initialTo || (date ? plusOneDay(date) : "")
   );
-  const [booking, setBooking] = useState<Booking | null>(null);
+  const [booking, setBooking] = useState<BookingCreated | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied] = useState<string | null>(null);
 
   const rate = Number(roomType.base_rate);
   const nights =
@@ -76,14 +71,18 @@ export default function BookingForm({
     }
     setSaving(true);
     try {
-      const created = await postJson<Booking>("/api/booking/bookings", {
-        guest_id: guestId,
+      const created = await postJson<BookingCreated>("/api/booking/bookings", {
         hotel_id: hotelId,
         room_type_id: roomType.room_type_id,
         check_in: checkIn,
         check_out: checkOut,
         channel: "direct",
         total_amount: total,
+        guest: {
+          name: guestName.trim(),
+          email: guestEmail.trim(),
+          phone: guestPhone.trim(),
+        },
       });
       setBooking(created);
     } catch (err) {
@@ -110,11 +109,15 @@ export default function BookingForm({
     setError(null);
     setSaving(true);
     try {
+      const query =
+        action === "cancel" && booking.manage_token
+          ? `?token=${encodeURIComponent(booking.manage_token)}`
+          : "";
       const updated = await postJson<Booking>(
-        `/api/booking/bookings/${booking.booking_id}/${action}`,
+        `/api/booking/bookings/${booking.booking_id}/${action}${query}`,
         {}
       );
-      setBooking(updated);
+      setBooking({ ...updated, manage_token: booking.manage_token });
     } catch (err) {
       const msg = err instanceof Error ? err.message : "No se pudo actualizar la reserva";
       const conflict = msg.includes("409") || msg.toLowerCase().includes("conflict");
@@ -128,14 +131,13 @@ export default function BookingForm({
     }
   };
 
-  const copyCode = async () => {
-    if (!booking) return;
+  const copyText = async (key: string, text: string) => {
     try {
-      await navigator.clipboard.writeText(booking.booking_id);
-      setCopied(true);
-      window.setTimeout(() => setCopied(false), 2000);
+      await navigator.clipboard.writeText(text);
+      setCopied(key);
+      window.setTimeout(() => setCopied((prev) => (prev === key ? null : prev)), 2000);
     } catch {
-      setCopied(false);
+      setCopied(null);
     }
   };
 
@@ -188,6 +190,54 @@ export default function BookingForm({
               </p>
             )}
           </div>
+          <fieldset className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+            <legend className={`${labelClass} sr-only`}>Datos del huésped</legend>
+            <div>
+              <label htmlFor="booking-guest-name" className={labelClass}>
+                Nombre y apellido
+              </label>
+              <input
+                id="booking-guest-name"
+                type="text"
+                value={guestName}
+                onChange={(e) => setGuestName(e.target.value)}
+                autoComplete="name"
+                className="w-full rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="booking-guest-email" className={labelClass}>
+                Correo
+              </label>
+              <input
+                id="booking-guest-email"
+                type="email"
+                value={guestEmail}
+                onChange={(e) => setGuestEmail(e.target.value)}
+                autoComplete="email"
+                className="w-full rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                required
+              />
+            </div>
+            <div>
+              <label htmlFor="booking-guest-phone" className={labelClass}>
+                Teléfono
+              </label>
+              <input
+                id="booking-guest-phone"
+                type="tel"
+                value={guestPhone}
+                onChange={(e) => setGuestPhone(e.target.value)}
+                autoComplete="tel"
+                className="w-full rounded border border-gray-300 px-3 py-2 dark:border-gray-600 dark:bg-gray-700 dark:text-gray-100"
+                required
+              />
+            </div>
+          </fieldset>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Sin cuenta: el hotel te identifica con estos datos y un código de gestión.
+          </p>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <fieldset className="min-w-0">
               <legend className={labelClass}>Check-in</legend>
@@ -233,12 +283,28 @@ export default function BookingForm({
               <dd className="font-mono text-xs">{booking.booking_id}</dd>
               <button
                 type="button"
-                onClick={copyCode}
+                onClick={() => void copyText("booking", booking.booking_id)}
                 className="rounded border border-gray-300 px-2 py-0.5 text-xs font-medium transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 touch-manipulation dark:border-gray-600 dark:hover:bg-gray-700"
               >
-                {copied ? "¡Copiado!" : "Copiar"}
+                {copied === "booking" ? "¡Copiado!" : "Copiar"}
               </button>
             </div>
+            {booking.manage_token ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <dt className="font-medium">Código de gestión:</dt>
+                <dd className="font-mono text-xs">{booking.manage_token}</dd>
+                <button
+                  type="button"
+                  onClick={() => void copyText("manage", booking.manage_token)}
+                  className="rounded border border-gray-300 px-2 py-0.5 text-xs font-medium transition-colors hover:bg-gray-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 touch-manipulation dark:border-gray-600 dark:hover:bg-gray-700"
+                >
+                  {copied === "manage" ? "¡Copiado!" : "Copiar"}
+                </button>
+              </div>
+            ) : null}
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Guardá el código de gestión: sirve para ver o cancelar tu reserva sin cuenta.
+            </p>
             <div className="flex gap-2">
               <dt className="font-medium">Estado:</dt>
               <dd>

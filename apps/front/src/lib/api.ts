@@ -54,6 +54,16 @@ export interface RoomType {
   amenities: string[];
 }
 
+export interface PhysicalRoom {
+  physical_room_id: string;
+  hotel_id: string;
+  room_type_id: string;
+  room_number: string;
+  available_from: string;
+  is_active: boolean;
+  roomType: Pick<RoomType, "room_type_id" | "name">;
+}
+
 export interface CancellationPolicy {
   policy_id: string;
   hotel_id: string;
@@ -69,6 +79,10 @@ export interface Availability {
 export interface Booking {
   booking_id: string;
   guest_id: string;
+  guest_name: string | null;
+  guest_email: string | null;
+  guest_phone: string | null;
+  booked_by_user_id: string | null;
   hotel_id: string;
   room_type_id: string;
   check_in: string;
@@ -78,15 +92,22 @@ export interface Booking {
   total_amount: number | string;
 }
 
+/** Respuesta del alta: incluye el manage token una sola vez. */
+export interface BookingCreated extends Booking {
+  manage_token: string;
+}
+
 /** Alias de compatibilidad con el admin original. */
 export type BookingRef = Booking & {
   status: Booking["status"] | (string & {});
   channel: Booking["channel"] | (string & {});
+  guest_name?: string | null;
 };
 
 export interface RoomAssignment {
   assignment_id: string;
   booking_id: string;
+  physical_room_id?: string | null;
   physical_room_number: string;
   checked_in_at: string;
   checked_out_at: string | null;
@@ -146,6 +167,12 @@ export async function fetchHotelById(id: string): Promise<Hotel> {
 
 export async function fetchRoomTypes(hotelId: string): Promise<RoomType[]> {
   return cachedFetchRoomTypes(hotelId);
+}
+
+export async function fetchPhysicalRooms(hotelId: string): Promise<PhysicalRoom[]> {
+  return apiFetch<PhysicalRoom[]>(
+    `${PROPERTY_API}/hotels/${encodeURIComponent(hotelId)}/rooms`
+  );
 }
 
 // Per-request dedup (server-cache-react): misma URL = 1 solo viaje al backend.
