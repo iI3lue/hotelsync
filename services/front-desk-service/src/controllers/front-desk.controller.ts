@@ -3,6 +3,7 @@ import {
   frontDeskService,
   incidentService,
 } from "../services/front-desk.service.js";
+import { AuthRequest } from "../lib/auth.js";
 
 export class FrontDeskController {
   async arrivals(req: Request, res: Response, next: NextFunction) {
@@ -16,7 +17,11 @@ export class FrontDeskController {
 
   async checkIn(req: Request, res: Response, next: NextFunction) {
     try {
-      const assignment = await frontDeskService.checkIn(req.body);
+      const auth = (req as AuthRequest).auth;
+      const assignment = await frontDeskService.checkIn(
+        req.body,
+        auth ?? { sub: "", email: "", role: "", hotel_id: null, scope: "global", iat: 0, exp: 0 }
+      );
       res.status(201).json(assignment);
     } catch (err) {
       next(err);
@@ -25,7 +30,11 @@ export class FrontDeskController {
 
   async checkOut(req: Request, res: Response, next: NextFunction) {
     try {
-      const assignment = await frontDeskService.checkOut(req.body);
+      const auth = (req as AuthRequest).auth;
+      const assignment = await frontDeskService.checkOut(
+        req.body,
+        auth ?? { sub: "", email: "", role: "", hotel_id: null, scope: "global", iat: 0, exp: 0 }
+      );
       res.json(assignment);
     } catch (err) {
       next(err);

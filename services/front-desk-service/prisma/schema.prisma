@@ -11,6 +11,7 @@ datasource db {
 model RoomAssignment {
   assignment_id        String    @id @default(uuid()) @db.Uuid
   booking_id           String    @unique @db.Uuid
+  physical_room_id     String?   @db.Uuid
   physical_room_number String    @db.VarChar(20)
   checked_in_at        DateTime  @default(now()) @db.Timestamptz(6)
   checked_out_at       DateTime? @db.Timestamptz(6)
@@ -29,6 +30,7 @@ model Arrival {
   hotel_id     String   @db.Uuid
   room_type_id String   @db.Uuid
   guest_id     String   @db.Uuid
+  guest_name   String?  @db.VarChar(255)
   check_in     DateTime @db.Date
   check_out    DateTime @db.Date
   channel      String   @default("direct") @db.VarChar(20)

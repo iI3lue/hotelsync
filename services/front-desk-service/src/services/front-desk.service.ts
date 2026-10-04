@@ -2,12 +2,28 @@ import prisma from "../lib/prisma.js";
 import { AppError } from "../middleware/error-handler.js";
 import { enqueueOutboxEvent } from "../lib/outbox.js";
 import { fetchBooking } from "../lib/booking-client.js";
+import type { AuthClaims } from "../lib/auth.js";
 import {
   ArrivalsQuery,
   CheckInInput,
   CheckOutInput,
   CreateIncidentInput,
 } from "../validators/front-desk.js";
+
+const DESK_ROLES = ["RECEPTIONIST", "MANAGER", "SUPER_ADMIN"];
+
+function requireDeskScope(
+  actor: AuthClaims,
+  hotelId: string | undefined
+): void {
+  if (actor.role === "SUPER_ADMIN") return;
+  if (!DESK_ROLES.includes(actor.role)) {
+    throw new AppError(403, "Insufficient role", "Forbidden");
+  }
+  if (!hotelId || actor.hotel_id !== hotelId) {
+    throw new AppError(403, "Not allowed for this hotel", "Forbidden");
+  }
+}
 
 export class FrontDeskService {
   /**
@@ -30,7 +46,7 @@ export class FrontDeskService {
     });
   }
 
-  async checkIn(data: CheckInInput) {
+  async checkIn(data: CheckInInput, actor: AuthClaims) {
     const booking = await fetchBooking(data.booking_id);
 
     if (!booking) {
@@ -49,6 +65,8 @@ export class FrontDeskService {
       );
     }
 
+    requireDeskScope(actor, booking.hotel_id);
+
     const existing = await prisma.roomAssignment.findUnique({
       where: { booking_id: data.booking_id },
     });
@@ -64,12 +82,25 @@ export class FrontDeskService {
     return prisma.roomAssignment.create({
       data: {
         booking_id: data.booking_id,
+        physical_room_id: data.physical_room_id ?? null,
         physical_room_number: data.physical_room_number,
       },
     });
   }
 
-  async checkOut(data: CheckOutInput) {
+  async checkOut(data: CheckOutInput, actor: AuthClaims) {
+    const booking = await fetchBooking(data.booking_id);
+
+    if (!booking) {
+      throw new AppError(
+        404,
+        `Booking with id ${data.booking_id} not found in Booking Service`,
+        "Not Found"
+      );
+    }
+
+    requireDeskScope(actor, booking.hotel_id);
+
     const assignment = await prisma.roomAssignment.findUnique({
       where: { booking_id: data.booking_id },
     });
@@ -103,6 +134,7 @@ export class FrontDeskService {
       await enqueueOutboxEvent(tx, "checkout.completed", {
         booking_id: updated.booking_id,
         physical_room_number: updated.physical_room_number,
+        physical_room_id: updated.physical_room_id ?? null,
       });
 
       await enqueueOutboxEvent(tx, "booking.completed", {

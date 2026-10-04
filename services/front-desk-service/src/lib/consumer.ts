@@ -4,6 +4,7 @@ import { consume, ARRIVALS_QUEUE } from "./broker.js";
 export interface BookingCreatedPayload {
   booking_id: string;
   guest_id: string;
+  guest_name?: string | null;
   hotel_id: string;
   room_type_id: string;
   check_in: string;
@@ -36,6 +37,7 @@ export async function handleBookingEvent(
       create: {
         booking_id: created.booking_id,
         guest_id: created.guest_id,
+        guest_name: created.guest_name ?? null,
         hotel_id: created.hotel_id,
         room_type_id: created.room_type_id,
         check_in: new Date(created.check_in),
@@ -45,6 +47,7 @@ export async function handleBookingEvent(
       },
       update: {
         guest_id: created.guest_id,
+        guest_name: created.guest_name ?? null,
         hotel_id: created.hotel_id,
         room_type_id: created.room_type_id,
         check_in: new Date(created.check_in),
