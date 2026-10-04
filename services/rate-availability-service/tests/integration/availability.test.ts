@@ -22,7 +22,15 @@ jest.mock("../../src/lib/prisma.js", () => ({
 }));
 
 import prisma from "../../src/lib/prisma.js";
+import { signAccessToken } from "../../../user-service/src/lib/tokens.js";
 const mockPrisma = prisma as any;
+
+const MANAGER_TOKEN = signAccessToken({
+  sub: "manager",
+  email: "manager@example.com",
+  role: "MANAGER",
+  hotel_id: "c1b2c3d4-e5f6-4890-abcd-ef1234567890",
+});
 
 const app = express();
 app.use(express.json());
@@ -138,7 +146,7 @@ describe("Rate & Availability Service API", () => {
   });
 
   describe("POST /v1/blocks", () => {
-    it("should block rooms successfully", async () => {
+    it("should block rooms successfully with manager session", async () => {
       mockPrisma.inventory.findUnique.mockResolvedValue({
         available_count: 10,
         blocked_count: 0,
@@ -150,6 +158,7 @@ describe("Rate & Availability Service API", () => {
 
       const res = await request(app)
         .post("/v1/blocks")
+        .set("Authorization", `Bearer ${MANAGER_TOKEN}`)
         .send({
           room_type_id: VALID_UUID,
           date: "2026-01-15",
@@ -162,9 +171,23 @@ describe("Rate & Availability Service API", () => {
       expect(res.body.blocked).toBe(2);
     });
 
+    it("should return 401 without a session", async () => {
+      const res = await request(app)
+        .post("/v1/blocks")
+        .send({
+          room_type_id: VALID_UUID,
+          date: "2026-01-15",
+          count: 2,
+          action: "block",
+        });
+
+      expect(res.status).toBe(401);
+    });
+
     it("should return 400 with invalid action", async () => {
       const res = await request(app)
         .post("/v1/blocks")
+        .set("Authorization", `Bearer ${MANAGER_TOKEN}`)
         .send({
           room_type_id: VALID_UUID,
           date: "2026-01-15",
