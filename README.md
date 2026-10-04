@@ -111,7 +111,7 @@ docker compose down
 
 | Herramienta | URL | Credenciales | Qué muestra |
 |-------------|-----|--------------|-------------|
-| RabbitMQ Management | `http://localhost:15672` | `guest` / `guest` | Exchange `hotelsync.events`, colas `front-desk.arrivals`, `housekeeping.tasks`, `billing.folio` (Messages/Ready/Acks = flujo async en vivo) |
+| RabbitMQ Management | `http://localhost:15672` | `guest` / `guest` | Exchange `hotelsync.events`, colas `front-desk.arrivals`, `housekeeping.tasks`, `billing.folio` y `rate-availability.physical-rooms` |
 | Adminer (6 bases) | `http://localhost:8080` | Sistema `PostgreSQL`, usuario `hotelsync`, clave `hotelsync_dev` | Tablas `bookings`, `event_outbox`, `arrivals`, `cleaning_tasks`, `folios`, `invoices`, etc. |
 
 Servidores en Adminer (red interna de compose, puerto `5432`):
@@ -138,12 +138,14 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 |--------|------|-------------|
 | GET | `/health` | Health check |
 | GET | `/v1/hotels` | Listar hoteles |
-| POST | `/v1/hotels` | Crear hotel |
+| POST | `/v1/hotels` | Crear hotel (SUPER_ADMIN) |
 | GET | `/v1/hotels/:id` | Obtener hotel |
 | GET | `/v1/hotels/:id/room-types` | Tipos de habitación del hotel |
-| POST | `/v1/room-types` | Crear tipo de habitación |
-| PUT | `/v1/room-types/:id` | Actualizar tipo de habitación |
+| POST | `/v1/room-types` | Crear tipo (MANAGER del hotel o SUPER_ADMIN) |
+| PUT | `/v1/room-types/:id` | Actualizar tipo (mismo alcance) |
 | GET | `/v1/hotels/:id/cancellation-policy` | Política de cancelación |
+| GET | `/v1/hotels/:id/rooms` | Habitaciones físicas del hotel |
+| POST | `/v1/hotels/:id/rooms` | Alta de unidad + evento a R&A (MANAGER/SUPER_ADMIN) |
 
 ### Rate & Availability Service (puerto 3002)
 
@@ -153,7 +155,7 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 | GET | `/v1/availability` | Consultar disponibilidad |
 | GET | `/v1/rates` | Listar tarifas |
 | PUT | `/v1/rate-rules` | Crear/actualizar regla de tarifa |
-| POST | `/v1/blocks` | Bloquear/desbloquear inventario |
+| POST | `/v1/blocks` | Bloquear/desbloquear inventario (MANAGER/SUPER_ADMIN) |
 
 ### Booking Service (puerto 3004)
 
@@ -161,10 +163,11 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 |--------|------|-------------|
 | GET | `/health` | Health check |
 | GET | `/v1/bookings` | Listar reservas (filtros `hotel_id`, `status`, `date`) |
-| POST | `/v1/bookings` | Crear reserva (`pending`, emite `booking.created`) |
-| GET | `/v1/bookings/:id` | Obtener reserva |
-| POST | `/v1/bookings/:id/confirm` | Confirmar (bloqueo optimista anti-sobreventa) |
-| POST | `/v1/bookings/:id/cancel` | Cancelar (emite `booking.cancelled`) |
+| POST | `/v1/bookings` | Crear reserva anónima con datos del huésped (`pending`, devuelve `manage_token`, emite `booking.created`) |
+| GET | `/v1/bookings/:id` | Obtener reserva (staff o `?token=` de gestión) |
+| POST | `/v1/bookings/:id/confirm` | Confirmar con staff o manage token (bloqueo optimista anti-sobreventa) |
+| GET | `/v1/bookings/me` | Reservas propias de la cuenta (Bearer) |
+| POST | `/v1/bookings/:id/cancel` | Cancelar con manage token o staff (emite `booking.cancelled`) |
 
 ### Front Desk Service (puerto 3005)
 
@@ -172,7 +175,7 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 |--------|------|-------------|
 | GET | `/health` | Health check |
 | GET | `/v1/arrivals?hotel_id=&date=` | Llegadas del día (read model local, vía RabbitMQ) |
-| POST | `/v1/check-in` | Check-in con habitación física |
+| POST | `/v1/check-in` | Check-in con habitación física (+ `physical_room_id` opcional del catálogo) |
 | POST | `/v1/check-out` | Check-out (emite `checkout.completed`) |
 | GET | `/v1/incidents` | Listar incidencias |
 | POST | `/v1/incidents` | Crear incidencia |
@@ -184,9 +187,10 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 |--------|------|-------------|
 | GET | `/health` | Health check |
 | GET | `/v1/tasks?hotel_id=&status=` | Cola de tareas (vía `checkout.completed`) |
-| PUT | `/v1/tasks/:id/assign` | Asignar al personal (`assigned_to`) |
-| PUT | `/v1/tasks/:id/start` | Pasar a en limpieza |
-| PUT | `/v1/tasks/:id/complete` | Completar (habitación a `clean`) |
+| GET | `/v1/tasks/mine` | Tareas del usuario logueado (Bearer) |
+| PUT | `/v1/tasks/:id/assign` | Asignar por UUID de cuenta (HOUSEKEEPER/MANAGER/SUPER_ADMIN) |
+| PUT | `/v1/tasks/:id/start` | Pasar a en limpieza (mismo rol) |
+| PUT | `/v1/tasks/:id/complete` | Completar con registro de quién/cuándo (habitación a `clean`) |
 | GET | `/v1/rooms/status?hotel_id=` | Estados de habitación |
 | PUT | `/v1/rooms/:id/status` | Estado manual (`dirty\|cleaning\|clean\|maintenance`) |
 
@@ -198,10 +202,34 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 | GET | `/v1/folios?hotel_id=&status=` | Folios abiertos/cerrados |
 | GET | `/v1/folios/:id` | Folio con cargos y factura |
 | GET | `/v1/folios/guest/:id` | Folios de un huésped |
-| POST | `/v1/charges` | Agregar cargo (minibar, spa, restaurante) |
-| POST | `/v1/folios/:id/close` | Cerrar y emitir factura (idempotente) |
+| POST | `/v1/charges` | Agregar cargo (staff de recepción/manager/admin) |
+| POST | `/v1/folios/:id/close` | Cerrar y emitir factura, idempotente (mismo rol) |
 | GET | `/v1/invoices?hotel_id=` | Facturas del hotel |
 | GET | `/v1/invoices/:id` | Factura con folio y cargos |
+
+### User Service (puerto 3003)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/health` | Health check |
+| POST | `/v1/auth/register` | Registro público opcional (cuenta `GUEST`) |
+| POST | `/v1/auth/login` | Login, devuelve access (8h) + refresh (7d con rotación) |
+| POST | `/v1/auth/federated` | Login con Google vía Auth0 (verifica JWKS, crea/vincula GUEST) |
+| POST | `/v1/auth/refresh` | Rota el refresh y emite un par nuevo |
+| POST | `/v1/auth/logout` | Revoca el refresh (idempotente) |
+| GET | `/v1/users/me` | Perfil propio + rol vigente |
+| PATCH | `/v1/users/me` | Editar nombre/teléfono propios |
+| POST | `/v1/admin/users` | Alta de personal (SUPER_ADMIN; devuelve `initial_password` si no se indicó) |
+| GET | `/v1/admin/users` | Listar personal (SUPER_ADMIN todo; MANAGER solo su hotel) |
+| PATCH | `/v1/admin/users/:id` | Editar personal o desactivar (SUPER_ADMIN) |
+| POST | `/v1/hotels/:hotelId/staff` | Alta de recepcionista/limpieza (MANAGER del hotel o SUPER_ADMIN) |
+| GET | `/v1/hotels/:hotelId/staff` | Personal del hotel (mismo alcance) |
+| PATCH | `/v1/hotels/:hotelId/staff/:userId` | Activar/desactivar asignación del hotel |
+
+Auth HS256 con `AUTH_JWT_SECRET` compartido (mismo valor en user-service y
+consumidores). Sin ese secreto los servicios que verifican no arrancan; sin
+`RABBITMQ_URL` el resto opera igual. El seed crea el `SUPER_ADMIN` inicial
+desde `BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD`.
 
 ## Testing
 
@@ -271,6 +299,11 @@ habitación a sucia + tarea automática) y Billing consume `booking.created`
 vía outbox propio). Sin `RABBITMQ_URL` los servicios operan igual pero los
 eventos quedan `pending` en el outbox.
 
+Property también publica `physical-room.created` desde su outbox al registrar
+una unidad. R&A consume la cola `rate-availability.physical-rooms`, agrega una
+unidad disponible por fecha durante 365 días desde `available_from` y limpia
+las claves de Redis; los eventos repetidos no vuelven a sumar inventario.
+
 ### Modelo de Datos
 
 #### Property Service
@@ -280,8 +313,12 @@ eventos quedan `pending` en el outbox.
 | `hotel` | hotel_id (PK), name, city, country, timezone | — |
 | `room_type` | room_type_id (PK), hotel_id (FK), name, capacity, base_rate, amenities | — |
 | `cancellation_policy` | policy_id (PK), hotel_id (FK), name, description | — |
+| `physical_rooms` | physical_room_id (PK), hotel_id (FK), room_type_id (FK), room_number, available_from, is_active | UNIQUE(hotel_id, room_number) |
+| `event_outbox` | event_id (PK), event_type, payload, status, created_at, sent_at | Índice por estado y fecha |
 
 #### Rate & Availability Service
+
+| `processed_events` | event_id (PK), event_type, processed_at | Deduplica eventos publicados por Property |
 
 | Tabla | Campos principales | Constraints |
 |-------|-------------------|-------------|

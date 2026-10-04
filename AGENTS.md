@@ -4,9 +4,9 @@ Monorepo con npm workspaces. Node ≥20. Express + TypeScript + Prisma + Postgre
 Documentos extensos: README.md (instalación y endpoints), ARCHITECTURE.md (patrones), API.md (contratos). Consultarlos solo si se requiere detalle.
 
 ## Estructura y puertos
-- services/property-service:3001 | rate-availability-service:3002 | booking-service:3004 | front-desk-service:3005 | housekeeping-service:3006 | billing-service:3007
+- services/property-service:3001 | rate-availability-service:3002 | user-service:3003 | booking-service:3004 | front-desk-service:3005 | housekeeping-service:3006 | billing-service:3007
 - apps/front:3000 (público + /admin) | apps/admin heredado
-- PostgreSQL 16 por servicio: 5432-5437 | RabbitMQ 5672/15672 (exchange hotelsync.events) | Redis 6379 | Adminer 8080
+- PostgreSQL 16 por servicio: 5432-5438 | RabbitMQ 5672/15672 (exchange hotelsync.events) | Redis 6379 | Adminer 8080
 - Estructura por servicio: src/{routes,controllers,services,validators,middleware}/index.ts + prisma/{schema,seed,migrations} + tests/
 
 ## Comandos (desde la raíz)

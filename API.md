@@ -130,6 +130,56 @@ GET /v1/hotels/:id/room-types
 
 ---
 
+### Listar Habitaciones Físicas de un Hotel
+
+```
+GET /v1/hotels/:hotelId/rooms
+```
+
+**Response (200):** Lista las unidades físicas del hotel, incluyendo el nombre y el ID del tipo asociado.
+
+```json
+[
+  {
+    "physical_room_id": "f1b2c3d4-e5f6-4890-abcd-ef1234567890",
+    "hotel_id": "eb74238a-9837-4e51-9f7b-34085e0b1be3",
+    "room_type_id": "1da37d42-6509-419a-929a-19a190fe9fcb",
+    "room_number": "101",
+    "available_from": "2026-10-02T00:00:00.000Z",
+    "is_active": true,
+    "roomType": {
+      "room_type_id": "1da37d42-6509-419a-929a-19a190fe9fcb",
+      "name": "Standard Double"
+    }
+  }
+]
+```
+
+---
+
+### Crear Habitación Física
+
+```
+POST /v1/hotels/:hotelId/rooms
+Content-Type: application/json
+```
+
+**Request body:**
+
+```json
+{
+  "room_type_id": "1da37d42-6509-419a-929a-19a190fe9fcb",
+  "room_number": "101",
+  "available_from": "2026-10-02"
+}
+```
+
+**Response (201):** Unidad física creada. El alta y el evento de inventario se guardan en una misma transacción; R&A procesa el evento de forma idempotente y agrega la unidad durante 365 días desde su fecha de disponibilidad.
+
+**Errors:** `401` sin Bearer de MANAGER del hotel o SUPER_ADMIN; `404` si el tipo no pertenece al hotel; `409` si el hotel ya tiene ese número de habitación.
+
+---
+
 ### Crear Tipo de Habitación
 
 ```
@@ -425,31 +475,47 @@ POST /v1/bookings
 Content-Type: application/json
 ```
 
-**Request body:**
+**Request body (reserva anonima, sin cuenta):**
 ```json
 {
-  "guest_id": "b1b2c3d4-e5f6-4890-abcd-ef1234567890",
   "hotel_id": "c1b2c3d4-e5f6-4890-abcd-ef1234567890",
   "room_type_id": "d1b2c3d4-e5f6-4890-abcd-ef1234567890",
   "check_in": "2026-10-01",
   "check_out": "2026-10-05",
   "channel": "direct",
-  "total_amount": 25500
+  "total_amount": 25500,
+  "guest": { "name": "Ana", "email": "ana@example.com", "phone": "+5491112345678" }
 }
 ```
 
 **Reglas de validación:**
 | Campo | Regla |
 |-------|-------|
-| `guest_id`, `hotel_id`, `room_type_id` | UUID válido |
+| `hotel_id`, `room_type_id` | UUID válido |
 | `check_in`, `check_out` | Formato `YYYY-MM-DD`, `check_out` posterior a `check_in` |
 | `channel` | `direct` \| `ota` \| `phone` (default `direct`) |
 | `total_amount` | Debe ser >= 0 |
+| `guest` | Nombre, email y teléfono requeridos |
 
-La reserva se crea en estado `pending` y emite el evento `booking.created`
-(stub con log; RabbitMQ en Fase 2).
+El backend genera `guest_id` y un `manage_token` del lado servidor (nunca se
+acepta un `guest_id` del cliente). Si el request lleva Bearer, queda registrado
+`booked_by_user_id`. La reserva se crea en estado `pending` y emite el evento
+`booking.created` con el nombre del huésped para las llegadas.
 
-**Response (201):** Objeto booking con `booking_id` generado y `status: "pending"`.
+**Response (201):** Objeto booking con `booking_id`/`guest_id` generados,
+`status: "pending"` y `manage_token` (se muestra una sola vez; solo se guarda
+su hash). El hash nunca se expone en ninguna respuesta. El token vence a los
+30 días (`manage_token_expires_at`); vencido, lectura y cancelación devuelven
+403 y hay que pedir uno nuevo a recepción.
+
+### Mis Reservas
+
+```
+GET /v1/bookings/me   (Bearer)
+```
+
+Reservas de la cuenta: creadas con su sesión (`booked_by_user_id`) o con su
+email. Une la cuenta `GUEST` opcional con reservas anónimas previas.
 
 **Error (400):**
 ```json
@@ -474,10 +540,14 @@ Todos los filtros son opcionales. `date` filtra reservas que cubren esa fecha
 ### Obtener Reserva por ID
 
 ```
-GET /v1/bookings/:id
+GET /v1/bookings/:id?token=<manage_token>
 ```
 
-**Response (200):** Objeto booking.
+El UUID solo no autoriza: requiere Bearer de staff operativo
+(`SUPER_ADMIN`, `MANAGER`, `RECEPTIONIST`) o el `manage_token` entregado en
+el alta. Sin credenciales devuelve 401; con token ajeno, 403.
+
+**Response (200):** Objeto booking (sin hash del token).
 
 **Error (404):**
 ```json
@@ -489,11 +559,12 @@ GET /v1/bookings/:id
 ### Confirmar Reserva (RN-1)
 
 ```
-POST /v1/bookings/:id/confirm
+POST /v1/bookings/:id/confirm?token=<manage_token>
 ```
 
-Solo transiciona `pending → confirmed`. Implementa RN-1 del PRD de forma
-síncrona vía REST a Rate & Availability:
+Requiere Bearer de staff operativo o el `manage_token` (el UUID solo no
+autoriza). Solo transiciona `pending → confirmed`. Implementa RN-1 del PRD
+de forma síncrona vía REST a Rate & Availability:
 
 1. Reserva inventario (`POST /v1/availability/reserve`) en R&A
 2. Aplica `version` como bloqueo optimista (BK-4, RTA-4 del PRD): si la
@@ -515,9 +586,10 @@ síncrona vía REST a Rate & Availability:
 ### Cancelar Reserva (RN-2)
 
 ```
-POST /v1/bookings/:id/cancel
+POST /v1/bookings/:id/cancel?token=<manage_token>
 ```
 
+Mismo control de acceso que la lectura (staff o manage token).
 Transiciona `pending|confirmed → cancelled` y emite `booking.cancelled`.
 Implementa RN-2 del PRD: si la reserva estaba `confirmed`, libera el
 inventario en R&A (`POST /v1/availability/release`) antes de cancelar.
@@ -558,7 +630,8 @@ GET /v1/arrivals?hotel_id=<uuid>&date=<YYYY-MM-DD>
 Retorna las reservas `confirmed` del hotel que cubren la fecha (delegado a
 Booking Service).
 
-**Response (200):** Arreglo de bookings.
+**Response (200):** Arreglo de llegadas con `guest_name` proyectado desde
+`booking.created`.
 
 ---
 
@@ -573,9 +646,13 @@ Content-Type: application/json
 ```json
 {
   "booking_id": "a1b2c3d4-e5f6-4890-abcd-ef1234567890",
-  "physical_room_number": "101"
+  "physical_room_number": "101",
+  "physical_room_id": "f1b2c3d4-e5f6-4890-abcd-ef1234567890"
 }
 ```
+
+`physical_room_id` es el UUID externo del catálogo de Property (sin FK entre
+bases) y es opcional: recepción puede seguir operando solo con el número.
 
 **Reglas de negocio:**
 - La reserva debe existir en Booking Service y estar `confirmed` (si no, 404/409)
@@ -652,18 +729,25 @@ GET /health
 
 ```
 GET /v1/tasks?hotel_id=<uuid>&status=<pending|assigned|in_progress|done|cancelled>
-PUT /v1/tasks/:id/assign
-PUT /v1/tasks/:id/start
-PUT /v1/tasks/:id/complete
+GET /v1/tasks/mine?status=<...>                                    (Bearer)
+PUT /v1/tasks/:id/assign    (Bearer HOUSEKEEPER|MANAGER|SUPER_ADMIN)
+PUT /v1/tasks/:id/start     (Bearer HOUSEKEEPER|MANAGER|SUPER_ADMIN)
+PUT /v1/tasks/:id/complete  (Bearer HOUSEKEEPER|MANAGER|SUPER_ADMIN)
 ```
 
 **PUT /v1/tasks/:id/assign body:**
 ```json
-{ "assigned_to": "Lucía" }
+{ "assigned_to_user_id": "11111111-2222-4333-8444-555555555555" }
 ```
 
-Completar la tarea deja la habitación en `clean` en la misma transacción
-(HK-4). Transiciones válidas: `pending → assigned|in_progress|cancelled`,
+La asignación guarda el UUID de la cuenta (no un nombre libre) y `/mine`
+filtra por el usuario del JWT. Al asignar se verifica contra user-service que
+sea personal activo de limpieza del mismo hotel (sin `USER_SERVICE_URL` se
+omite la validación remota). Completar exige ser el asignado o manager del
+hotel, deja la habitación en `clean` en la misma transacción (HK-4) y registra
+`completed_by_user_id` + `completed_at`. `checkout.completed` propaga
+`physical_room_id` y Housekeeping lo persiste en estado y tarea.
+Transiciones válidas: `pending → assigned|in_progress|cancelled`,
 `assigned → in_progress|cancelled`, `in_progress → done|cancelled`.
 
 ---
@@ -747,11 +831,98 @@ tabla simplificada): CO 19%, AR 21%, CL 19%, MX 16%, ES 21%, resto 0%.
 
 ---
 
+## User Service (puerto 3003)
+
+Auth HS256 con `AUTH_JWT_SECRET` compartido entre user-service y los
+servicios que verifican. Access de 8h (`role`, `hotel_id`, `scope` en claims)
++ refresh opaco de 7d con rotación (solo se guarda su hash).
+
+### Registro y login
+
+```
+POST /v1/auth/register
+POST /v1/auth/login
+Content-Type: application/json
+```
+
+**Request register:**
+```json
+{ "email": "huesped@example.com", "password": "Secret123!", "name": "Ana" }
+```
+
+**Response (201 register / 200 login):** `access_token`, `refresh_token`,
+`token_type: "Bearer"`, `expires_in`, `user` (sin hash) y `assignment`
+(rol + hotel vigentes). El registro crea cuenta `GUEST` activa; la
+verificación por correo queda pendiente (sin proveedor de mail).
+
+**Error (409):** email ya registrado. **Error (401):** credenciales inválidas.
+
+### Login federado (Google vía Auth0)
+
+```
+POST /v1/auth/federated
+Content-Type: application/json
+```
+
+**Request body:** `{ "provider": "auth0", "id_token": "<ID token de Auth0>" }`
+
+El servicio verifica firma, emisor y audiencia contra el JWKS de Auth0
+(`AUTH0_DOMAIN`/`AUTH0_CLIENT_ID`). Si la identidad externa ya está vinculada,
+reutiliza la cuenta; si es nueva, crea cuenta `GUEST` (sin contraseña
+utilizable) y la vincula en `external_identities`. Nunca vincula por email
+coincidente: un email con contraseña devuelve 409.
+
+**Response (201):** mismo par access + refresh que el login.
+
+**Errors:** `503` si Auth0 no está configurado; `401` con token inválido;
+`400` si la identidad no trae email.
+
+### Refresh y logout
+
+```
+POST /v1/auth/refresh
+POST /v1/auth/logout
+```
+
+**Request body:** `{ "refresh_token": "<opaco>" }`
+
+**Response refresh (200):** par nuevo; el refresh usado queda revocado.
+**Response logout (200):** `{ "logged_out": true }` (idempotente).
+
+### Perfil propio
+
+```
+GET /v1/users/me        (Bearer)
+PATCH /v1/users/me      (Bearer, solo name/phone)
+```
+
+### Administración de personal (SUPER_ADMIN)
+
+```
+POST /v1/admin/users                       (Bearer SUPER_ADMIN)
+GET /v1/admin/users?hotel_id=&role=        (Bearer SUPER_ADMIN o MANAGER)
+PATCH /v1/admin/users/:id                  (Bearer SUPER_ADMIN)
+```
+
+**Request alta:**
+```json
+{ "email": "recep@example.com", "name": "Recep", "role": "RECEPTIONIST", "hotel_id": "<uuid>" }
+```
+
+Roles de hotel (`MANAGER`, `RECEPTIONIST`, `HOUSEKEEPER`) exigen `hotel_id`;
+`SUPER_ADMIN` y `GUEST` son globales. Sin `password` se genera una temporal
+devuelta como `initial_password` una sola vez. Un MANAGER lista solo su hotel;
+no puede desactivarse a sí mismo un SUPER_ADMIN.
+
+---
+
 ## Errores Comunes
 
 | HTTP Code | Significado | Ejemplo |
 |-----------|-------------|---------|
 | 400 | Request inválido / validación fallida | Campo faltante, valor fuera de rango |
+| 401 | Falta el Bearer o es inválido/expirado | Alta de habitación sin login |
+| 403 | Rol o alcance insuficiente | Manager de otro hotel |
 | 404 | Recurso no encontrado | Hotel o inventario inexistente |
 | 409 | Conflicto de estado o concurrencia | Confirmar reserva no-pending, doble check-in |
 | 502 | Servicio dependiente no disponible | Booking Service caído (solo Front Desk) |
