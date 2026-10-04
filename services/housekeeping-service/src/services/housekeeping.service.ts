@@ -1,7 +1,10 @@
 import prisma from "../lib/prisma.js";
 import { AppError } from "../middleware/error-handler.js";
+import type { AuthClaims } from "../lib/auth.js";
+import { fetchHotelStaff } from "../lib/user-client.js";
 import {
   AssignTaskInput,
+  ListMineQuery,
   ListRoomStatusQuery,
   ListTasksQuery,
   SetRoomStatusInput,
@@ -27,8 +30,26 @@ export class HousekeepingService {
     });
   }
 
-  /** Asigna una tarea al personal de limpieza (HK-3). */
-  async assignTask(id: string, data: AssignTaskInput) {
+  /** Tareas asignadas al usuario del JWT (vista del Housekeeper). */
+  async listMine(userId: string, query: ListMineQuery) {
+    return prisma.cleaningHistory.findMany({
+      where: {
+        assigned_to_user_id: userId,
+        ...(query.status ? { status: query.status } : {}),
+      },
+      orderBy: { created_at: "asc" },
+    });
+  }
+
+  /**
+   * Asigna una tarea a una cuenta del personal por UUID (HK-3). Verifica
+   * contra user-service que sea personal activo del mismo hotel.
+   */
+  async assignTask(
+    id: string,
+    data: AssignTaskInput,
+    authorization?: string
+  ) {
     const task = await prisma.cleaningHistory.findUnique({
       where: { history_id: id },
     });
@@ -44,18 +65,31 @@ export class HousekeepingService {
       );
     }
 
-    return prisma.$transaction(async (tx) => {
-      const updated = await tx.cleaningHistory.update({
-        where: { history_id: id },
-        data: { status: "assigned", assigned_to: data.assigned_to },
-      });
+    const staff = await fetchHotelStaff(task.hotel_id, authorization);
+    if (staff) {
+      const member = staff.find((s) => s.user_id === data.assigned_to_user_id);
+      const eligible = member?.assignments.some(
+        (a) =>
+          a.is_active &&
+          a.hotel_id === task.hotel_id &&
+          (a.role === "HOUSEKEEPER" || a.role === "MANAGER")
+      );
+      if (!eligible) {
+        throw new AppError(
+          403,
+          "Assignee is not active cleaning staff of this hotel",
+          "Forbidden"
+        );
+      }
+    }
 
-      await tx.roomStatus.update({
-        where: { room_status_id: task.room_status_id },
-        data: { assigned_to: data.assigned_to },
-      });
-
-      return updated;
+    return prisma.cleaningHistory.update({
+      where: { history_id: id },
+      data: {
+        status: "assigned",
+        assigned_to_user_id: data.assigned_to_user_id,
+        assigned_to: null,
+      },
     });
   }
 
@@ -66,9 +100,14 @@ export class HousekeepingService {
 
   /**
    * Completa la tarea y deja la habitación limpia en la misma
-   * transacción (HK-4: ocupación y limpieza sin conflictos).
+   * transacción (HK-4: ocupación y limpieza sin conflictos). Registra
+   * quien la completo y cuando.
    */
-  async completeTask(id: string) {
+  async completeTask(
+    id: string,
+    completedByUserId?: string,
+    actor?: AuthClaims
+  ) {
     const task = await prisma.cleaningHistory.findUnique({
       where: { history_id: id },
     });
@@ -84,11 +123,29 @@ export class HousekeepingService {
         "Conflict"
       );
     }
+    if (
+      task.assigned_to_user_id &&
+      completedByUserId !== task.assigned_to_user_id
+    ) {
+      const isManagerOfHotel =
+        actor?.role === "MANAGER" && actor.hotel_id === task.hotel_id;
+      if (actor?.role !== "SUPER_ADMIN" && !isManagerOfHotel) {
+        throw new AppError(
+          403,
+          "Only the assignee or a manager of this hotel can complete the task",
+          "Forbidden"
+        );
+      }
+    }
 
     return prisma.$transaction(async (tx) => {
       const updated = await tx.cleaningHistory.update({
         where: { history_id: id },
-        data: { status: "done" },
+        data: {
+          status: "done",
+          completed_by_user_id: completedByUserId ?? task.assigned_to_user_id,
+          completed_at: new Date(),
+        },
       });
 
       await tx.roomStatus.update({
