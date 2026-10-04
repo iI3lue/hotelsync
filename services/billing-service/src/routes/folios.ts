@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { billingController } from "../controllers/billing.controller.js";
+import { requireAuth, requireRole } from "../lib/auth.js";
 import { validate } from "../middleware/validate.js";
 import {
   closeFolioSchema,
@@ -9,6 +10,8 @@ import {
 } from "../validators/billing.js";
 
 const router = Router();
+
+const requireStaff = requireRole("RECEPTIONIST", "MANAGER", "SUPER_ADMIN");
 
 router.get(
   "/",
@@ -27,6 +30,8 @@ router.get(
 );
 router.post(
   "/:id/close",
+  requireAuth,
+  requireStaff,
   validate(folioIdParamSchema, "params"),
   validate(closeFolioSchema),
   billingController.closeFolio.bind(billingController)
