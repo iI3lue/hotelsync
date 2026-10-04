@@ -108,6 +108,8 @@ services:
         condition: service_healthy
       billing-db:
         condition: service_healthy
+      user-db:
+        condition: service_healthy
     restart: unless-stopped
 
   property-service:
@@ -120,8 +122,13 @@ services:
       NODE_ENV: production
       PORT: "3001"
       DATABASE_URL: postgresql://hotelsync:hotelsync_dev@property-db:5432/property_db
+      RABBITMQ_URL: amqp://rabbitmq:5672
+      # Solo desarrollo: en produccion inyectar un secreto propio de 32+ chars.
+      AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
     depends_on:
       property-db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     restart: unless-stopped
 
@@ -135,11 +142,16 @@ services:
       NODE_ENV: production
       PORT: "3002"
       DATABASE_URL: postgresql://hotelsync:hotelsync_dev@rate-availability-db:5432/rate_availability_db
+      # Solo desarrollo: en produccion inyectar un secreto propio de 32+ chars.
+      AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
       REDIS_URL: redis://redis:6379
+      RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
       rate-availability-db:
         condition: service_healthy
       redis:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
     restart: unless-stopped
 
@@ -153,6 +165,8 @@ services:
       NODE_ENV: production
       PORT: "3004"
       DATABASE_URL: postgresql://hotelsync:hotelsync_dev@booking-db:5432/booking_db
+      # Solo desarrollo: en produccion inyectar un secreto propio de 32+ chars.
+      AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
       RATE_SERVICE_URL: http://rate-availability-service:3002/v1
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
@@ -174,6 +188,8 @@ services:
       NODE_ENV: production
       PORT: "3005"
       DATABASE_URL: postgresql://hotelsync:hotelsync_dev@front-desk-db:5432/front_desk_db
+      # Solo desarrollo: en produccion inyectar un secreto propio de 32+ chars.
+      AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
       BOOKING_SERVICE_URL: http://booking-service:3004/v1
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
@@ -217,6 +233,22 @@ services:
       timeout: 5s
       retries: 5
 
+  user-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: user_db
+      POSTGRES_USER: hotelsync
+      POSTGRES_PASSWORD: hotelsync_dev
+    ports:
+      - "5438:5432"
+    volumes:
+      - user_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotelsync -d user_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   housekeeping-service:
     build:
       context: .
@@ -227,6 +259,9 @@ services:
       NODE_ENV: production
       PORT: "3006"
       DATABASE_URL: postgresql://hotelsync:hotelsync_dev@housekeeping-db:5432/housekeeping_db
+      # Solo desarrollo: en produccion inyectar un secreto propio de 32+ chars.
+      AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
+      USER_SERVICE_URL: http://user-service:3003/v1
       BOOKING_SERVICE_URL: http://booking-service:3004/v1
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
@@ -248,6 +283,8 @@ services:
       NODE_ENV: production
       PORT: "3007"
       DATABASE_URL: postgresql://hotelsync:hotelsync_dev@billing-db:5432/billing_db
+      # Solo desarrollo: en produccion inyectar un secreto propio de 32+ chars.
+      AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
       BOOKING_SERVICE_URL: http://booking-service:3004/v1
       PROPERTY_SERVICE_URL: http://property-service:3001/v1
       RABBITMQ_URL: amqp://rabbitmq:5672
@@ -262,6 +299,28 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  user-service:
+    build:
+      context: .
+      dockerfile: services/user-service/Dockerfile
+    ports:
+      - "3003:3003"
+    environment:
+      NODE_ENV: production
+      PORT: "3003"
+      DATABASE_URL: postgresql://hotelsync:hotelsync_dev@user-db:5432/user_db
+      # Solo desarrollo: en produccion inyectar un secreto propio de 32+ chars.
+      AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
+      BOOTSTRAP_ADMIN_EMAIL: admin@hotelsync.local
+      BOOTSTRAP_ADMIN_PASSWORD: Admin123!
+      # Login social (valores reales solo por entorno, nunca en el repo).
+      AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
+      AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
+    depends_on:
+      user-db:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   property_data:
   rate_availability_data:
@@ -269,5 +328,6 @@ volumes:
   front_desk_data:
   housekeeping_data:
   billing_data:
+  user_data:
   rabbitmq_data:
   redis_data:
