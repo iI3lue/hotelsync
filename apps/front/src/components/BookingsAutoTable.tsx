@@ -26,7 +26,9 @@ async function fetchBookings(
   date: string,
   status: StatusFilter
 ): Promise<BookingRef[]> {
-  const params = new URLSearchParams({ hotel_id: hotelId, date });
+  const params = new URLSearchParams({ hotel_id: hotelId });
+  // Fecha vacía = todas las fechas (el backend deja `date` opcional).
+  if (date) params.set("date", date);
   if (status !== "all") params.set("status", status);
   const res = await fetch(`/api/booking/bookings?${params.toString()}`, {
     signal: AbortSignal.timeout(3000),

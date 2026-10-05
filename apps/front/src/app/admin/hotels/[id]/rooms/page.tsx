@@ -14,7 +14,7 @@ export default async function RoomTypesPage({
   ]);
 
   return (
-    <div>
+    <div className="mx-auto w-full max-w-7xl px-4 py-8">
       <h1 className="text-3xl font-bold mb-8">Tipos de habitación</h1>
 
       <div className="bg-white rounded-lg shadow p-6 mb-8 dark:bg-gray-800">

@@ -90,6 +90,7 @@ export async function fetchRoomTypes(hotelId: string): Promise<RoomType[]> {
 
 export async function createHotel(data: {
   name: string;
+  address?: string;
   city: string;
   country: string;
   timezone: string;
@@ -103,8 +104,16 @@ export async function createRoomType(data: {
   capacity: number;
   base_rate: number;
   amenities: string[];
+  image_url?: string;
 }): Promise<RoomType> {
   return clientPost<RoomType>("/api/property/room-types", data);
+}
+
+export async function updateRoomType(
+  id: string,
+  data: Partial<Pick<RoomType, "name" | "capacity" | "base_rate" | "amenities" | "image_url">>
+): Promise<RoomType> {
+  return putJson<RoomType>(`/api/property/room-types/${encodeURIComponent(id)}`, data);
 }
 
 export async function fetchMyBookings(): Promise<import("./api").Booking[]> {
