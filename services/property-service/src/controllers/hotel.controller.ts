@@ -27,7 +27,7 @@ export class HotelController {
       const auth = (req as AuthRequest).auth;
       const hotel = await hotelService.create(
         req.body,
-        auth ?? { sub: "", email: "", role: "", hotel_id: null, scope: "global", iat: 0, exp: 0 }
+        auth ?? { sub: "", email: "", role: "", hotel_id: null, scope: "global", iss: "", aud: "", email_verified: false, iat: 0, exp: 0 }
       );
       res.status(201).json(hotel);
     } catch (err) {

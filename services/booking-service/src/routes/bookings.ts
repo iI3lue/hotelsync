@@ -1,6 +1,6 @@
 import { Router } from "express";
 import { bookingController } from "../controllers/booking.controller.js";
-import { attachAuth, requireAuth } from "../lib/auth.js";
+import { attachAuth, requireAuth, requireRole } from "../lib/auth.js";
 import { validate } from "../middleware/validate.js";
 import {
   bookingIdParamSchema,
@@ -11,8 +11,12 @@ import {
 
 const router = Router();
 
+const requireStaff = requireRole("SUPER_ADMIN", "MANAGER", "RECEPTIONIST");
+
 router.get(
   "/",
+  requireAuth,
+  requireStaff,
   validate(listBookingsQuerySchema, "query"),
   bookingController.list.bind(bookingController)
 );

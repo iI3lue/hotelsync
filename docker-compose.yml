@@ -144,6 +144,8 @@ services:
       DATABASE_URL: postgresql://hotelsync:hotelsync_dev@rate-availability-db:5432/rate_availability_db
       # Solo desarrollo: en produccion inyectar un secreto propio de 32+ chars.
       AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
+      # Clave servicio-a-servicio (Booking -> R&A). Solo desarrollo.
+      SERVICE_API_KEY: hotelsync-dev-service-key-change-me
       REDIS_URL: redis://redis:6379
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
@@ -168,6 +170,12 @@ services:
       # Solo desarrollo: en produccion inyectar un secreto propio de 32+ chars.
       AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
       RATE_SERVICE_URL: http://rate-availability-service:3002/v1
+      # Debe coincidir con SERVICE_API_KEY de rate-availability-service.
+      SERVICE_API_KEY: hotelsync-dev-service-key-change-me
+      # Clave exclusiva para las consultas internas de Front Desk.
+      FRONT_DESK_SERVICE_KEY: hotelsync-dev-front-desk-key-change-me
+      HOUSEKEEPING_SERVICE_KEY: hotelsync-dev-housekeeping-key-change-me
+      BILLING_SERVICE_KEY: hotelsync-dev-billing-key-change-me
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
       booking-db:
@@ -191,6 +199,7 @@ services:
       # Solo desarrollo: en produccion inyectar un secreto propio de 32+ chars.
       AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
       BOOKING_SERVICE_URL: http://booking-service:3004/v1
+      BOOKING_SERVICE_KEY: hotelsync-dev-front-desk-key-change-me
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
       front-desk-db:
@@ -263,6 +272,7 @@ services:
       AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
       USER_SERVICE_URL: http://user-service:3003/v1
       BOOKING_SERVICE_URL: http://booking-service:3004/v1
+      BOOKING_SERVICE_KEY: hotelsync-dev-housekeeping-key-change-me
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
       housekeeping-db:
@@ -286,6 +296,7 @@ services:
       # Solo desarrollo: en produccion inyectar un secreto propio de 32+ chars.
       AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
       BOOKING_SERVICE_URL: http://booking-service:3004/v1
+      BOOKING_SERVICE_KEY: hotelsync-dev-billing-key-change-me
       PROPERTY_SERVICE_URL: http://property-service:3001/v1
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:

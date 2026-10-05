@@ -22,6 +22,7 @@ function toIsoDate(date: Date): string {
 export interface BookingAccess {
   actor?: AuthClaims;
   token?: string;
+  serviceAuthorized?: boolean;
 }
 
 const STAFF_ROLES = ["SUPER_ADMIN", "MANAGER", "RECEPTIONIST"];
@@ -62,9 +63,10 @@ function stripManageHash<T extends { manage_token_hash?: unknown }>(
 
 export class BookingService {
   /**
-   * Alta anonima: el backend genera `guest_id` y un `manage_token` de un
-   * solo uso en respuesta (solo se guarda su hash). Si quien reserva inicio
-   * sesion, queda registrado en `booked_by_user_id`.
+   * Alta anonima: el backend genera `guest_id` y un `manage_token` en
+   * respuesta (solo se guarda su hash SHA-256, con 30 dias de vigencia y
+   * reutilizable en ese plazo). Si quien reserva inicio sesion, queda
+   * registrado en `booked_by_user_id`.
    */
   async create(data: CreateBookingInput, actor?: AuthClaims) {
     if (data.check_out <= data.check_in) {
@@ -130,16 +132,35 @@ export class BookingService {
   }
 
   /**
-   * Lectura con acceso: staff (cualquier rol operativo) o manage token de
-   * la reserva. El UUID solo no autoriza. Nunca expone el hash del token.
+   * Alcance por hotel: el staff solo opera reservas de su propio hotel.
+   * SUPER_ADMIN es global. Sin esto, un rol válido de un hotel podría
+   * leer/confirmar/cancelar reservas de otro.
+   */
+  private requireBookingScope(
+    actor: AuthClaims,
+    booking: { hotel_id: string }
+  ): void {
+    if (actor.role === "SUPER_ADMIN") return;
+    if (!STAFF_ROLES.includes(actor.role) || actor.hotel_id !== booking.hotel_id) {
+      throw new AppError(403, "Not allowed to access this booking", "Forbidden");
+    }
+  }
+
+  /**
+   * Lectura con acceso: staff del mismo hotel o manage token de la reserva.
+   * El UUID solo no autoriza. Nunca expone el hash del token.
    */
   async getByIdWithAccess(id: string, access: BookingAccess) {
-    if (!access.actor && !access.token) {
+    if (!access.actor && !access.token && !access.serviceAuthorized) {
       throw new AppError(401, "Missing credentials", "Unauthorized");
     }
     const booking = await this.findById(id);
 
+    if (access.serviceAuthorized) {
+      return stripManageHash(booking);
+    }
     if (access.actor && STAFF_ROLES.includes(access.actor.role)) {
+      this.requireBookingScope(access.actor, booking);
       return stripManageHash(booking);
     }
     if (access.token && manageTokenMatches(booking, access.token)) {
@@ -148,10 +169,19 @@ export class BookingService {
     throw new AppError(403, "Not allowed to access this booking", "Forbidden");
   }
 
-  async list(query: ListBookingsQuery) {
-    return prisma.booking.findMany({
+  /**
+   * Listado operativo: requiere staff y fuerza el hotel del actor
+   * (salvo SUPER_ADMIN). Nunca expone el hash del manage token.
+   */
+  async list(query: ListBookingsQuery, actor: AuthClaims) {
+    if (!STAFF_ROLES.includes(actor.role)) {
+      throw new AppError(403, "Not allowed to list bookings", "Forbidden");
+    }
+    const hotelId =
+      actor.role === "SUPER_ADMIN" ? query.hotel_id : actor.hotel_id;
+    const bookings = await prisma.booking.findMany({
       where: {
-        ...(query.hotel_id ? { hotel_id: query.hotel_id } : {}),
+        ...(hotelId ? { hotel_id: hotelId } : {}),
         ...(query.status ? { status: query.status } : {}),
         ...(query.date
           ? {
@@ -162,6 +192,7 @@ export class BookingService {
       },
       orderBy: { check_in: "asc" },
     });
+    return bookings.map(stripManageHash);
   }
 
   /**
@@ -193,7 +224,9 @@ export class BookingService {
       check_out: toIsoDate(existing.check_out),
     };
 
-    await reserveInventory(range);
+    // Claves distintas para reservar y para compensar: si la reserva
+    // aplicó y la compensación usa otra clave, no se deduplica entre sí.
+    await reserveInventory({ ...range, idempotency_key: `booking:${id}:confirm` });
 
     const updated = await prisma.booking.updateMany({
       where: {
@@ -208,7 +241,10 @@ export class BookingService {
     });
 
     if (updated.count === 0) {
-      await releaseInventory(range).catch(() => undefined);
+      await releaseInventory({
+        ...range,
+        idempotency_key: `booking:${id}:confirm-compensate`,
+      }).catch(() => undefined);
       throw new AppError(
         409,
         "Booking was modified concurrently, please retry",
@@ -220,13 +256,17 @@ export class BookingService {
   }
 
   /**
-   * Reservas propias de una cuenta: creadas con su sesion o con su email.
-   * Une la cuenta GUEST opcional con reservas anonimas previas.
+   * Reservas propias de una cuenta: creadas con su sesion, o con su email
+   * solo si el email esta verificado. Sin esto, registrarse con el correo
+   * de otra persona permitiria leer sus reservas.
    */
-  async listByUser(userId: string, email: string) {
+  async listByUser(userId: string, email: string, emailVerified: boolean) {
     const bookings = await prisma.booking.findMany({
       where: {
-        OR: [{ booked_by_user_id: userId }, { guest_email: email }],
+        OR: [
+          { booked_by_user_id: userId },
+          ...(emailVerified ? [{ guest_email: email }] : []),
+        ],
       },
       orderBy: { check_in: "asc" },
     });
@@ -246,6 +286,7 @@ export class BookingService {
         room_type_id: existing.room_type_id,
         check_in: toIsoDate(existing.check_in),
         check_out: toIsoDate(existing.check_out),
+        idempotency_key: `booking:${id}:cancel`,
       });
     }
 

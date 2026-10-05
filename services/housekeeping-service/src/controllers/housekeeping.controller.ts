@@ -5,7 +5,22 @@ import { AuthRequest } from "../lib/auth.js";
 export class HousekeepingController {
   async listTasks(req: Request, res: Response, next: NextFunction) {
     try {
-      const tasks = await housekeepingService.listTasks(req.query as never);
+      const auth = (req as AuthRequest).auth;
+      const tasks = await housekeepingService.listTasks(
+        req.query as never,
+        auth ?? {
+          sub: "",
+          email: "",
+          email_verified: false,
+          role: "",
+          hotel_id: null,
+          scope: "global",
+          iss: "",
+          aud: "",
+          iat: 0,
+          exp: 0,
+        }
+      );
       res.json(tasks);
     } catch (err) {
       next(err);
@@ -27,9 +42,22 @@ export class HousekeepingController {
 
   async assignTask(req: Request, res: Response, next: NextFunction) {
     try {
+      const auth = (req as AuthRequest).auth;
       const task = await housekeepingService.assignTask(
         req.params.id as string,
         req.body,
+        auth ?? {
+          sub: "",
+          email: "",
+          email_verified: false,
+          role: "",
+          hotel_id: null,
+          scope: "global",
+          iss: "",
+          aud: "",
+          iat: 0,
+          exp: 0,
+        },
         req.headers.authorization
       );
       res.json(task);
@@ -40,7 +68,22 @@ export class HousekeepingController {
 
   async startTask(req: Request, res: Response, next: NextFunction) {
     try {
-      const task = await housekeepingService.startTask(req.params.id as string);
+      const auth = (req as AuthRequest).auth;
+      const task = await housekeepingService.startTask(
+        req.params.id as string,
+        auth ?? {
+          sub: "",
+          email: "",
+          email_verified: false,
+          role: "",
+          hotel_id: null,
+          scope: "global",
+          iss: "",
+          aud: "",
+          iat: 0,
+          exp: 0,
+        }
+      );
       res.json(task);
     } catch (err) {
       next(err);
@@ -63,7 +106,22 @@ export class HousekeepingController {
 
   async listRoomStatus(req: Request, res: Response, next: NextFunction) {
     try {
-      const rooms = await housekeepingService.listRoomStatus(req.query as never);
+      const auth = (req as AuthRequest).auth;
+      const rooms = await housekeepingService.listRoomStatus(
+        req.query as never,
+        auth ?? {
+          sub: "",
+          email: "",
+          email_verified: false,
+          role: "",
+          hotel_id: null,
+          scope: "global",
+          iss: "",
+          aud: "",
+          iat: 0,
+          exp: 0,
+        }
+      );
       res.json(rooms);
     } catch (err) {
       next(err);
@@ -72,9 +130,22 @@ export class HousekeepingController {
 
   async setRoomStatus(req: Request, res: Response, next: NextFunction) {
     try {
+      const auth = (req as AuthRequest).auth;
       const room = await housekeepingService.setRoomStatus(
         req.params.id as string,
-        req.body
+        req.body,
+        auth ?? {
+          sub: "",
+          email: "",
+          email_verified: false,
+          role: "",
+          hotel_id: null,
+          scope: "global",
+          iss: "",
+          aud: "",
+          iat: 0,
+          exp: 0,
+        }
       );
       res.json(room);
     } catch (err) {

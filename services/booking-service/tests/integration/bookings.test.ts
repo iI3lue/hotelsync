@@ -3,6 +3,7 @@ import request from "supertest";
 import express from "express";
 import bookingsRouter from "../../src/routes/bookings.js";
 import { errorHandler, AppError } from "../../src/middleware/error-handler.js";
+import { signAccessToken } from "../../../user-service/src/lib/tokens.js";
 
 // Mock Prisma
 jest.mock("../../src/lib/prisma.js", () => ({
@@ -40,6 +41,9 @@ import { reserveInventory, releaseInventory } from "../../src/lib/rate-client.js
 const mockPrisma = prisma as any;
 const mockReserve = reserveInventory as jest.Mock;
 const mockRelease = releaseInventory as jest.Mock;
+process.env.FRONT_DESK_SERVICE_KEY = "test-front-desk-key";
+process.env.HOUSEKEEPING_SERVICE_KEY = "test-housekeeping-key";
+process.env.BILLING_SERVICE_KEY = "test-billing-key";
 
 // $transaction interactiva: passthrough al mismo mock (tx === prisma mockeado)
 mockPrisma.$transaction.mockImplementation(async (fn: any) => fn(mockPrisma));
@@ -126,19 +130,36 @@ describe("Booking Service API", () => {
   });
 
   describe("GET /v1/bookings", () => {
-    it("should return bookings list", async () => {
+    const STAFF_TOKEN = signAccessToken({
+      sub: "11111111-2222-4333-8444-555555555555",
+      email: "recep@example.com",
+      role: "RECEPTIONIST",
+      hotel_id: HOTEL_ID,
+    });
+
+    it("should return bookings list for staff of the hotel", async () => {
       mockPrisma.booking.findMany.mockResolvedValue([
         { booking_id: VALID_UUID, status: "pending" },
       ]);
 
-      const res = await request(app).get("/v1/bookings");
+      const res = await request(app)
+        .get("/v1/bookings")
+        .set("Authorization", `Bearer ${STAFF_TOKEN}`);
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
     });
 
+    it("should return 401 without credentials", async () => {
+      const res = await request(app).get("/v1/bookings");
+
+      expect(res.status).toBe(401);
+    });
+
     it("should return 400 with invalid status filter", async () => {
-      const res = await request(app).get("/v1/bookings?status=weird");
+      const res = await request(app)
+        .get("/v1/bookings?status=weird")
+        .set("Authorization", `Bearer ${STAFF_TOKEN}`);
 
       expect(res.status).toBe(400);
     });
@@ -168,6 +189,21 @@ describe("Booking Service API", () => {
 
       const res = await request(app).get(`/v1/bookings/${VALID_UUID}`);
       expect(res.status).toBe(401);
+    });
+
+    it("should allow the authenticated Front Desk service", async () => {
+      mockPrisma.booking.findUnique.mockResolvedValue({
+        booking_id: VALID_UUID,
+        status: "confirmed",
+        manage_token_hash: MANAGE_HASH,
+      });
+
+      const res = await request(app)
+        .get(`/v1/bookings/${VALID_UUID}`)
+        .set("x-front-desk-key", "test-front-desk-key");
+
+      expect(res.status).toBe(200);
+      expect(res.body).not.toHaveProperty("manage_token_hash");
     });
 
     it("should return 404 for non-existent booking", async () => {

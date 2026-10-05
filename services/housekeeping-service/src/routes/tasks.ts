@@ -12,9 +12,12 @@ import {
 const router = Router();
 
 const requireCleaner = requireRole("HOUSEKEEPER", "MANAGER", "SUPER_ADMIN");
+const requireManager = requireRole("MANAGER", "SUPER_ADMIN");
 
 router.get(
   "/",
+  requireAuth,
+  requireManager,
   validate(listTasksQuerySchema, "query"),
   housekeepingController.listTasks.bind(housekeepingController)
 );
@@ -29,7 +32,7 @@ router.get(
 router.put(
   "/:id/assign",
   requireAuth,
-  requireCleaner,
+  requireManager,
   validate(taskIdParamSchema, "params"),
   validate(assignTaskSchema),
   housekeepingController.assignTask.bind(housekeepingController)

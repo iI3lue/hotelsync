@@ -5,12 +5,18 @@ import { AppError } from "../middleware/error-handler.js";
 export interface AuthClaims {
   sub: string;
   email: string;
+  email_verified: boolean;
   role: string;
   hotel_id: string | null;
   scope: "global" | "hotel";
+  iss: string;
+  aud: string;
   iat: number;
   exp: number;
 }
+
+export const TOKEN_ISSUER = "hotelsync";
+export const TOKEN_AUDIENCE = "hotelsync-api";
 
 /**
  * Verificacion local de access tokens HS256 (misma firma que user-service).
@@ -32,6 +38,17 @@ export function verifyAccessToken(token: string): AuthClaims {
     throw new AppError(401, "Invalid token", "Unauthorized");
   }
   const [header, payload, signature] = parts;
+  let decodedHeader: { alg?: string };
+  try {
+    decodedHeader = JSON.parse(
+      Buffer.from(header, "base64url").toString("utf8")
+    );
+  } catch {
+    throw new AppError(401, "Invalid token", "Unauthorized");
+  }
+  if (decodedHeader.alg !== "HS256") {
+    throw new AppError(401, "Invalid token", "Unauthorized");
+  }
   const expected = createHmac("sha256", getSecret())
     .update(`${header}.${payload}`)
     .digest();
@@ -42,7 +59,13 @@ export function verifyAccessToken(token: string): AuthClaims {
   const claims = JSON.parse(
     Buffer.from(payload, "base64url").toString("utf8")
   ) as AuthClaims;
-  if (!claims.sub || !claims.exp || Date.now() / 1000 > claims.exp) {
+  if (
+    !claims.sub ||
+    !claims.exp ||
+    claims.iss !== TOKEN_ISSUER ||
+    claims.aud !== TOKEN_AUDIENCE ||
+    Date.now() / 1000 > claims.exp
+  ) {
     throw new AppError(401, "Token expired", "Unauthorized");
   }
   return claims;
@@ -50,6 +73,40 @@ export function verifyAccessToken(token: string): AuthClaims {
 
 export interface AuthRequest extends Request {
   auth?: AuthClaims;
+}
+
+/** Claves independientes por caller backend; ninguna se entrega al browser. */
+export function isTrustedService(req: Request): boolean {
+  const callers = [
+    { header: "x-front-desk-key", secret: process.env.FRONT_DESK_SERVICE_KEY },
+    { header: "x-housekeeping-key", secret: process.env.HOUSEKEEPING_SERVICE_KEY },
+    { header: "x-billing-key", secret: process.env.BILLING_SERVICE_KEY },
+  ];
+  return callers.some(({ header, secret }) => {
+    if (!secret) return false;
+    const value = req.headers[header];
+    const provided = Array.isArray(value) ? value[0] : value;
+    if (!provided) return false;
+    const a = Buffer.from(provided, "utf8");
+    const b = Buffer.from(secret, "utf8");
+    return a.length === b.length && timingSafeEqual(a, b);
+  });
+}
+
+/** Exige uno de los roles indicados (requiere `requireAuth` antes). */
+export function requireRole(...roles: string[]) {
+  return (req: Request, _res: Response, next: NextFunction): void => {
+    const auth = (req as AuthRequest).auth;
+    if (!auth) {
+      next(new AppError(401, "Missing bearer token", "Unauthorized"));
+      return;
+    }
+    if (!roles.includes(auth.role)) {
+      next(new AppError(403, "Insufficient role", "Forbidden"));
+      return;
+    }
+    next();
+  };
 }
 
 /** Exige un access token valido y lo deja en `req.auth`. */

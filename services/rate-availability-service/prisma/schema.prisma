@@ -47,3 +47,14 @@ model ProcessedEvent {
 
   @@map("processed_events")
 }
+
+/**
+ * Claves de idempotencia para reserve/release. Un reintento de Booking
+ * con la misma clave no descuenta ni libera inventario dos veces.
+ */
+model AppliedKey {
+  key        String   @id @db.VarChar(100)
+  created_at DateTime @default(now()) @db.Timestamptz(6)
+
+  @@map("applied_keys")
+}

@@ -16,20 +16,22 @@ export interface HotelStaffMember {
 }
 
 /**
- * Personal activo de un hotel segun user-service. Devuelve `null` cuando
- * USER_SERVICE_URL no esta configurado (mismo patron `not_configured` del
- * broker/cache): en ese caso el llamador omite la validacion remota.
+ * Personal activo de un hotel segun user-service. Falla cerrado: si
+ * USER_SERVICE_URL no esta configurado o user-service no responde, no se
+ * puede verificar al asignado y la asignacion se rechaza en vez de
+ * omitir la validacion.
  */
 export async function fetchHotelStaff(
   hotelId: string,
   authorization: string | undefined
-): Promise<HotelStaffMember[] | null> {
+): Promise<HotelStaffMember[]> {
   const baseUrl = userServiceUrl();
   if (!baseUrl) {
-    console.warn(
-      "[user-client] USER_SERVICE_URL no configurado: se omite la validacion contra user-service"
+    throw new AppError(
+      503,
+      "User service not configured, cannot validate assignee",
+      "Service Unavailable"
     );
-    return null;
   }
 
   const res = await fetch(

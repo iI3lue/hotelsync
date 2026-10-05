@@ -25,6 +25,9 @@ import prisma from "../../src/lib/prisma.js";
 import { signAccessToken } from "../../../user-service/src/lib/tokens.js";
 const mockPrisma = prisma as any;
 
+process.env.SERVICE_API_KEY = "test-service-key";
+const SERVICE_HEADERS = { "x-service-key": "test-service-key" };
+
 const MANAGER_TOKEN = signAccessToken({
   sub: "manager",
   email: "manager@example.com",
@@ -213,6 +216,7 @@ describe("Rate & Availability Service API", () => {
 
       const res = await request(app)
         .post("/v1/availability/reserve")
+        .set(SERVICE_HEADERS)
         .send({
           room_type_id: VALID_UUID,
           check_in: "2026-10-01",
@@ -224,11 +228,22 @@ describe("Rate & Availability Service API", () => {
       expect(txMock.inventory.updateMany).toHaveBeenCalledTimes(3);
     });
 
+    it("should return 401 without service credentials", async () => {
+      const res = await request(app).post("/v1/availability/reserve").send({
+        room_type_id: VALID_UUID,
+        check_in: "2026-10-01",
+        check_out: "2026-10-02",
+      });
+
+      expect(res.status).toBe(401);
+    });
+
     it("should return 409 when there is no availability", async () => {
       txMock.inventory.updateMany.mockResolvedValue({ count: 0 });
 
       const res = await request(app)
         .post("/v1/availability/reserve")
+        .set(SERVICE_HEADERS)
         .send({
           room_type_id: VALID_UUID,
           check_in: "2026-10-01",
@@ -241,6 +256,7 @@ describe("Rate & Availability Service API", () => {
     it("should return 400 with invalid body", async () => {
       const res = await request(app)
         .post("/v1/availability/reserve")
+        .set(SERVICE_HEADERS)
         .send({ room_type_id: VALID_UUID, check_in: "2026-10-01" });
 
       expect(res.status).toBe(400);
@@ -261,6 +277,7 @@ describe("Rate & Availability Service API", () => {
 
       const res = await request(app)
         .post("/v1/availability/release")
+        .set(SERVICE_HEADERS)
         .send({
           room_type_id: VALID_UUID,
           check_in: "2026-10-01",
@@ -270,6 +287,16 @@ describe("Rate & Availability Service API", () => {
       expect(res.status).toBe(200);
       expect(res.body.released).toBe(true);
       expect(txMock.inventory.updateMany).toHaveBeenCalledTimes(3);
+    });
+
+    it("should return 401 without service credentials", async () => {
+      const res = await request(app).post("/v1/availability/release").send({
+        room_type_id: VALID_UUID,
+        check_in: "2026-10-01",
+        check_out: "2026-10-04",
+      });
+
+      expect(res.status).toBe(401);
     });
   });
 });

@@ -30,7 +30,8 @@ async function jwksFor(domain: string) {
 }
 
 export async function verifyAuth0IdToken(
-  idToken: string
+  idToken: string,
+  expectedNonce: string
 ): Promise<FederatedClaims> {
   const domain = process.env.AUTH0_DOMAIN;
   const audience = process.env.AUTH0_CLIENT_ID;
@@ -50,6 +51,11 @@ export async function verifyAuth0IdToken(
       audience,
     });
     if (!payload.sub || typeof payload.sub !== "string") {
+      console.error("[federated] id_token rejected (missing sub)");
+      throw new AppError(401, "Invalid federated token", "Unauthorized");
+    }
+    if (payload.nonce !== expectedNonce) {
+      console.error("[federated] id_token rejected (nonce mismatch)");
       throw new AppError(401, "Invalid federated token", "Unauthorized");
     }
     return {
@@ -60,6 +66,11 @@ export async function verifyAuth0IdToken(
     };
   } catch (err) {
     if (err instanceof AppError) throw err;
+    const code =
+      err instanceof Error
+        ? ((err as { code?: string }).code ?? err.name)
+        : "unknown";
+    console.error(`[federated] id_token rejected (${code})`);
     throw new AppError(401, "Invalid federated token", "Unauthorized");
   }
 }

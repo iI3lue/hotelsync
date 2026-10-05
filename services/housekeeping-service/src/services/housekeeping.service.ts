@@ -19,11 +19,32 @@ const TRANSITIONS: Record<string, string[]> = {
 };
 
 export class HousekeepingService {
-  /** Tareas de limpieza por hotel y estado (HK-3, documento §4.6). */
-  async listTasks(query: ListTasksQuery) {
+  private requireHotelRole(
+    actor: AuthClaims,
+    hotelId: string,
+    roles: string[]
+  ): void {
+    if (actor.role === "SUPER_ADMIN") return;
+    if (!roles.includes(actor.role) || actor.hotel_id !== hotelId) {
+      throw new AppError(403, "Not allowed for this hotel", "Forbidden");
+    }
+  }
+
+  /**
+   * Tareas de limpieza por hotel y estado (HK-3). El actor solo lista
+   * tareas de su propio hotel; SUPER_ADMIN puede listar cualquiera.
+   */
+  async listTasks(query: ListTasksQuery, actor: AuthClaims) {
+    if (actor.role !== "SUPER_ADMIN" && actor.role !== "MANAGER") {
+      throw new AppError(403, "Not allowed to list tasks", "Forbidden");
+    }
+    const hotelId = actor.role === "SUPER_ADMIN" ? query.hotel_id : actor.hotel_id;
+    if (!hotelId) {
+      throw new AppError(403, "Hotel scope required", "Forbidden");
+    }
     return prisma.cleaningHistory.findMany({
       where: {
-        hotel_id: query.hotel_id,
+        hotel_id: hotelId,
         ...(query.status ? { status: query.status } : {}),
       },
       orderBy: { created_at: "asc" },
@@ -48,6 +69,7 @@ export class HousekeepingService {
   async assignTask(
     id: string,
     data: AssignTaskInput,
+    actor: AuthClaims,
     authorization?: string
   ) {
     const task = await prisma.cleaningHistory.findUnique({
@@ -57,6 +79,7 @@ export class HousekeepingService {
     if (!task) {
       throw new AppError(404, `Task with id ${id} not found`, "Not Found");
     }
+    this.requireHotelRole(actor, task.hotel_id, ["MANAGER"]);
     if (task.status !== "pending") {
       throw new AppError(
         409,
@@ -66,21 +89,19 @@ export class HousekeepingService {
     }
 
     const staff = await fetchHotelStaff(task.hotel_id, authorization);
-    if (staff) {
-      const member = staff.find((s) => s.user_id === data.assigned_to_user_id);
-      const eligible = member?.assignments.some(
-        (a) =>
-          a.is_active &&
-          a.hotel_id === task.hotel_id &&
-          (a.role === "HOUSEKEEPER" || a.role === "MANAGER")
+    const member = staff.find((s) => s.user_id === data.assigned_to_user_id);
+    const eligible = member?.assignments.some(
+      (a) =>
+        a.is_active &&
+        a.hotel_id === task.hotel_id &&
+        (a.role === "HOUSEKEEPER" || a.role === "MANAGER")
+    );
+    if (!eligible) {
+      throw new AppError(
+        403,
+        "Assignee is not active cleaning staff of this hotel",
+        "Forbidden"
       );
-      if (!eligible) {
-        throw new AppError(
-          403,
-          "Assignee is not active cleaning staff of this hotel",
-          "Forbidden"
-        );
-      }
     }
 
     return prisma.cleaningHistory.update({
@@ -94,7 +115,17 @@ export class HousekeepingService {
   }
 
   /** Marca una tarea en progreso. */
-  async startTask(id: string) {
+  async startTask(id: string, actor: AuthClaims) {
+    const task = await prisma.cleaningHistory.findUnique({
+      where: { history_id: id },
+    });
+    if (!task) {
+      throw new AppError(404, `Task with id ${id} not found`, "Not Found");
+    }
+    this.requireHotelRole(actor, task.hotel_id, ["HOUSEKEEPER", "MANAGER"]);
+    if (actor.role === "HOUSEKEEPER" && task.assigned_to_user_id !== actor.sub) {
+      throw new AppError(403, "Only the assigned housekeeper can start this task", "Forbidden");
+    }
     return this.transitionTask(id, "in_progress");
   }
 
@@ -115,6 +146,25 @@ export class HousekeepingService {
     if (!task) {
       throw new AppError(404, `Task with id ${id} not found`, "Not Found");
     }
+    if (!actor) {
+      throw new AppError(401, "Missing actor", "Unauthorized");
+    }
+    this.requireHotelRole(actor, task.hotel_id, ["HOUSEKEEPER", "MANAGER"]);
+    const isAssignedHousekeeper =
+      actor.role === "HOUSEKEEPER" && task.assigned_to_user_id === actor.sub;
+    const isManagerOfHotel =
+      actor.role === "MANAGER" && actor.hotel_id === task.hotel_id;
+    if (
+      actor.role !== "SUPER_ADMIN" &&
+      !isAssignedHousekeeper &&
+      !isManagerOfHotel
+    ) {
+      throw new AppError(
+        403,
+        "Only the assignee or a manager of this hotel can complete the task",
+        "Forbidden"
+      );
+    }
     if (task.status === "done") return task;
     if (!TRANSITIONS[task.status]?.includes("done")) {
       throw new AppError(
@@ -123,21 +173,6 @@ export class HousekeepingService {
         "Conflict"
       );
     }
-    if (
-      task.assigned_to_user_id &&
-      completedByUserId !== task.assigned_to_user_id
-    ) {
-      const isManagerOfHotel =
-        actor?.role === "MANAGER" && actor.hotel_id === task.hotel_id;
-      if (actor?.role !== "SUPER_ADMIN" && !isManagerOfHotel) {
-        throw new AppError(
-          403,
-          "Only the assignee or a manager of this hotel can complete the task",
-          "Forbidden"
-        );
-      }
-    }
-
     return prisma.$transaction(async (tx) => {
       const updated = await tx.cleaningHistory.update({
         where: { history_id: id },
@@ -158,15 +193,17 @@ export class HousekeepingService {
   }
 
   /** Estados de habitación por hotel (HK-1, documento §4.6). */
-  async listRoomStatus(query: ListRoomStatusQuery) {
+  async listRoomStatus(query: ListRoomStatusQuery, actor: AuthClaims) {
+    const hotelId = actor.role === "SUPER_ADMIN" ? query.hotel_id : query.hotel_id;
+    this.requireHotelRole(actor, hotelId, ["HOUSEKEEPER", "MANAGER"]);
     return prisma.roomStatus.findMany({
-      where: { hotel_id: query.hotel_id },
+      where: { hotel_id: hotelId },
       orderBy: { room_number: "asc" },
     });
   }
 
   /** Cambio manual de estado (ej. maintenance) (HK-1). */
-  async setRoomStatus(id: string, data: SetRoomStatusInput) {
+  async setRoomStatus(id: string, data: SetRoomStatusInput, actor: AuthClaims) {
     const existing = await prisma.roomStatus.findUnique({
       where: { room_status_id: id },
     });
@@ -178,6 +215,7 @@ export class HousekeepingService {
         "Not Found"
       );
     }
+    this.requireHotelRole(actor, existing.hotel_id, ["MANAGER"]);
 
     return prisma.roomStatus.update({
       where: { room_status_id: id },

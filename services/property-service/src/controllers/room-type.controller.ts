@@ -5,9 +5,12 @@ import { AuthRequest } from "../lib/auth.js";
 const ANONYMOUS = {
   sub: "",
   email: "",
+  email_verified: false,
   role: "",
   hotel_id: null,
   scope: "global",
+  iss: "",
+  aud: "",
   iat: 0,
   exp: 0,
 } as const;

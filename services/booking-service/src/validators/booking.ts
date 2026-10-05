@@ -48,7 +48,11 @@ export const listBookingsQuerySchema = z.object({
   date: dateSchema.optional(),
 });
 
-/** Token de gestion anonima: `GET /:id?token=` y `POST /:id/cancel?token=`. */
+/**
+ * Token de gestion anonima. Viaja preferentemente en el header
+ * `x-manage-token` (en query queda en logs e historial); se acepta
+ * `GET /:id?token=` y `POST /:id/cancel?token=` por compatibilidad.
+ */
 export const manageTokenQuerySchema = z.object({
   token: z.string().min(1).max(256).optional(),
 });

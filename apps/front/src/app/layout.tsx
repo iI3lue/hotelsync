@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import ThemeProvider from "@/components/ThemeProvider";
 import ThemeToggle from "@/components/ThemeToggle";
+import AccountNav from "@/components/AccountNav";
 
 const PROPERTY_API =
   process.env.NEXT_PUBLIC_PROPERTY_API_URL || "http://localhost:3001";
@@ -67,12 +68,7 @@ export default function RootLayout({
                 >
                   Administrar
                 </a>
-                <a
-                  href="/cuenta/entrar"
-                  className="text-sm font-medium text-gray-700 hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-gray-200 dark:hover:text-blue-400"
-                >
-                  Mi cuenta
-                </a>
+                <AccountNav />
                 <ThemeToggle />
               </nav>
             </div>

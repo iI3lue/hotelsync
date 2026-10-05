@@ -84,6 +84,7 @@ const HOTEL_ID = "c1b2c3d4-e5f6-4890-abcd-ef1234567890";
 const STAFF_TOKEN = signAccessToken({
   sub: "11111111-2222-4333-8444-555555555555",
   email: "recep@example.com",
+  email_verified: true,
   role: "RECEPTIONIST",
   hotel_id: HOTEL_ID,
 });
@@ -109,7 +110,7 @@ describe("Front Desk Service API", () => {
 
       const res = await request(app).get(
         `/v1/arrivals?hotel_id=${HOTEL_ID}&date=2026-10-02`
-      );
+      ).set("Authorization", `Bearer ${STAFF_TOKEN}`);
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);
@@ -117,7 +118,9 @@ describe("Front Desk Service API", () => {
     });
 
     it("should return 400 with missing params", async () => {
-      const res = await request(app).get("/v1/arrivals");
+      const res = await request(app)
+        .get("/v1/arrivals")
+        .set("Authorization", `Bearer ${STAFF_TOKEN}`);
       expect(res.status).toBe(400);
     });
   });
@@ -210,6 +213,10 @@ describe("Front Desk Service API", () => {
 
   describe("Incidents", () => {
     it("POST /v1/incidents should create an incident", async () => {
+      mockFetchBooking.mockResolvedValue({
+        booking_id: BOOKING_ID,
+        hotel_id: HOTEL_ID,
+      });
       mockPrisma.guestIncident.create.mockResolvedValue({
         incident_id: "i1",
         status: "open",
@@ -217,6 +224,7 @@ describe("Front Desk Service API", () => {
 
       const res = await request(app)
         .post("/v1/incidents")
+        .set("Authorization", `Bearer ${STAFF_TOKEN}`)
         .send({ booking_id: BOOKING_ID, description: "Canilla goteando" });
 
       expect(res.status).toBe(201);
@@ -225,7 +233,9 @@ describe("Front Desk Service API", () => {
     it("GET /v1/incidents should list incidents", async () => {
       mockPrisma.guestIncident.findMany.mockResolvedValue([]);
 
-      const res = await request(app).get("/v1/incidents");
+      const res = await request(app)
+        .get("/v1/incidents")
+        .set("Authorization", `Bearer ${STAFF_TOKEN}`);
 
       expect(res.status).toBe(200);
       expect(Array.isArray(res.body)).toBe(true);

@@ -1,18 +1,39 @@
 import { Request, Response, NextFunction } from "express";
 import { bookingService, BookingAccess } from "../services/booking.service.js";
-import { AuthRequest } from "../lib/auth.js";
+import { AuthRequest, isTrustedService } from "../lib/auth.js";
 
 function accessFrom(req: Request): BookingAccess {
+  // El token viaja preferentemente en header: en query queda en logs,
+  // historial y referrers. Se mantiene query por compatibilidad.
+  const headerToken = req.headers["x-manage-token"];
   return {
     actor: (req as AuthRequest).auth,
-    token: (req.query as { token?: string }).token,
+    serviceAuthorized: isTrustedService(req),
+    token:
+      (Array.isArray(headerToken) ? headerToken[0] : headerToken) ??
+      (req.query as { token?: string }).token,
   };
 }
 
 export class BookingController {
   async list(req: Request, res: Response, next: NextFunction) {
     try {
-      const bookings = await bookingService.list(req.query as never);
+      const auth = (req as AuthRequest).auth;
+      const bookings = await bookingService.list(
+        req.query as never,
+        auth ?? {
+          sub: "",
+          email: "",
+          email_verified: false,
+          role: "",
+          hotel_id: null,
+          scope: "global",
+          iss: "",
+          aud: "",
+          iat: 0,
+          exp: 0,
+        }
+      );
       res.json(bookings);
     } catch (err) {
       next(err);
@@ -57,7 +78,8 @@ export class BookingController {
       const auth = (req as AuthRequest).auth;
       const bookings = await bookingService.listByUser(
         auth?.sub as string,
-        auth?.email as string
+        auth?.email as string,
+        auth?.email_verified ?? false
       );
       res.json(bookings);
     } catch (err) {

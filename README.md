@@ -176,6 +176,7 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 | GET | `/health` | Health check |
 | GET | `/v1/arrivals?hotel_id=&date=` | Llegadas del día (read model local, vía RabbitMQ) |
 | POST | `/v1/check-in` | Check-in con habitación física (+ `physical_room_id` opcional del catálogo) |
+| GET | `/v1/check-in/:bookingId` | Asignación de una reserva (404 si no tiene check-in) |
 | POST | `/v1/check-out` | Check-out (emite `checkout.completed`) |
 | GET | `/v1/incidents` | Listar incidencias |
 | POST | `/v1/incidents` | Crear incidencia |
@@ -201,6 +202,7 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 | GET | `/health` | Health check |
 | GET | `/v1/folios?hotel_id=&status=` | Folios abiertos/cerrados |
 | GET | `/v1/folios/:id` | Folio con cargos y factura |
+| GET | `/v1/folios/by-booking/:bookingId` | Folio de una reserva (usa la factura de recepción) |
 | GET | `/v1/folios/guest/:id` | Folios de un huésped |
 | POST | `/v1/charges` | Agregar cargo (staff de recepción/manager/admin) |
 | POST | `/v1/folios/:id/close` | Cerrar y emitir factura, idempotente (mismo rol) |
@@ -213,7 +215,7 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 |--------|------|-------------|
 | GET | `/health` | Health check |
 | POST | `/v1/auth/register` | Registro público opcional (cuenta `GUEST`) |
-| POST | `/v1/auth/login` | Login, devuelve access (8h) + refresh (7d con rotación) |
+| POST | `/v1/auth/login` | Login, devuelve access (15 min) + refresh (7d con rotación atómica) |
 | POST | `/v1/auth/federated` | Login con Google vía Auth0 (verifica JWKS, crea/vincula GUEST) |
 | POST | `/v1/auth/refresh` | Rota el refresh y emite un par nuevo |
 | POST | `/v1/auth/logout` | Revoca el refresh (idempotente) |
@@ -381,15 +383,27 @@ las claves de Redis; los eventos repetidos no vuelven a sumar inventario.
 
 ### Deploy (producción)
 
-| Servicio | Plataforma | Puerto |
-|----------|------------|--------|
-| Property Service | Render | 3001 |
-| Rate & Availability | Render | 3002 |
-| Booking Service | Render | 3004 |
-| Front Desk Service | Render | 3005 |
-| Housekeeping Service | Render | 3006 |
-| Billing Service | Render | 3007 |
-| Front único (público + /admin) | Vercel | — |
+| Servicio | Plataforma | Puerto | URL prod |
+|----------|------------|--------|----------|
+| Property Service | Render | 3001 | `https://hotelsync-property-service.onrender.com` |
+| Rate & Availability | Render | 3002 | `https://hotelsync-rate-availability-service.onrender.com` |
+| User Service | Render | 3003 | `https://hotelsync-user-service.onrender.com` |
+| Booking Service | Render | 3004 | `https://hotelsync-booking-service.onrender.com` |
+| Front Desk Service | Render | 3005 | `https://hotelsync-front-desk-service.onrender.com` |
+| Housekeeping Service | Render | 3006 | `https://hotelsync-housekeeping-service.onrender.com` |
+| Billing Service | Render | 3007 | `https://hotelsync-billing-service.onrender.com` |
+| Front único (público + /admin) | Vercel | — | `https://hotelsync-front.vercel.app` |
+
+### Estado de producción (2026-10-05)
+
+- Los 7 backends en `live` con el hardening (scope por hotel, service keys,
+  HS256 con `iss`/`aud`, refresh atómico, nonce en federated) y todas las
+  migraciones aplicadas. Front con login Google funcionando, logout,
+  redirect por rol y cotización COP en vivo (`/api/rates` + polling 10 min).
+- `AUTH_JWT_SECRET` idéntico en los 7 backends; claves `SERVICE_API_KEY` y
+  `BOOKING_SERVICE_KEY` pareadas entre Booking y sus consumidores;
+  `USER_SERVICE_URL` en Housekeeping. Las `NEXT_PUBLIC_*` de Vercel se
+  hornean en el build: cualquier cambio exige Redeploy.
 
 ## Licencia
 

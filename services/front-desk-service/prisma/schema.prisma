@@ -59,10 +59,14 @@ model EventOutbox {
 model GuestIncident {
   incident_id String   @id @default(uuid()) @db.Uuid
   booking_id  String   @db.Uuid
+  // UUID externo copiado desde Booking para poder aplicar alcance por hotel
+  // sin una FK entre las bases de datos de ambos servicios.
+  hotel_id    String?  @db.Uuid
   description String   @db.Text
   status      String   @default("open") @db.VarChar(20)
   created_at  DateTime @default(now()) @db.Timestamptz(6)
 
   @@index([booking_id])
+  @@index([hotel_id, created_at])
   @@map("guest_incidents")
 }

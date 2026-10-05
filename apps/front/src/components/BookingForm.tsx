@@ -109,13 +109,15 @@ export default function BookingForm({
     setError(null);
     setSaving(true);
     try {
-      const query =
-        action === "cancel" && booking.manage_token
-          ? `?token=${encodeURIComponent(booking.manage_token)}`
-          : "";
+      // El manage token viaja en header, no en query: en la URL quedaría
+      // en historial, logs y referrers del navegador.
+      const headers: Record<string, string> = booking.manage_token
+        ? { "x-manage-token": booking.manage_token }
+        : {};
       const updated = await postJson<Booking>(
-        `/api/booking/bookings/${booking.booking_id}/${action}${query}`,
-        {}
+        `/api/booking/bookings/${booking.booking_id}/${action}`,
+        {},
+        headers
       );
       setBooking({ ...updated, manage_token: booking.manage_token });
     } catch (err) {

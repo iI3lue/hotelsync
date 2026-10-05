@@ -69,9 +69,12 @@ const confirmedBooking = {
 const STAFF = {
   sub: "11111111-2222-4333-8444-555555555555",
   email: "recep@example.com",
+  email_verified: true,
   role: "RECEPTIONIST",
   hotel_id: HOTEL_ID,
   scope: "hotel" as const,
+  iss: "hotelsync",
+  aud: "hotelsync-api",
   iat: 0,
   exp: 9999999999,
 };
@@ -86,10 +89,13 @@ describe("FrontDeskService", () => {
       const arrivals = [{ booking_id: BOOKING_ID, hotel_id: HOTEL_ID }];
       mockPrisma.arrival.findMany.mockResolvedValue(arrivals);
 
-      const result = await frontDeskService.getArrivals({
-        hotel_id: HOTEL_ID,
-        date: "2026-10-02",
-      });
+      const result = await frontDeskService.getArrivals(
+        {
+          hotel_id: HOTEL_ID,
+          date: "2026-10-02",
+        },
+        STAFF
+      );
 
       expect(result).toEqual(arrivals);
       expect(mockPrisma.arrival.findMany).toHaveBeenCalledWith({
@@ -102,6 +108,57 @@ describe("FrontDeskService", () => {
         orderBy: { check_in: "asc" },
       });
       expect(mockFetchConfirmed).not.toHaveBeenCalled();
+    });
+
+    it("should reject a receptionist querying another hotel's arrivals", async () => {
+      await expect(
+        frontDeskService.getArrivals(
+          {
+            hotel_id: "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff",
+            date: "2026-10-02",
+          },
+          STAFF
+        )
+      ).rejects.toThrow(AppError);
+      expect(mockPrisma.arrival.findMany).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("getAssignment", () => {
+    it("should return the room assignment for a booking of the actor hotel", async () => {
+      mockFetchBooking.mockResolvedValue(confirmedBooking);
+      mockPrisma.roomAssignment.findUnique.mockResolvedValue({
+        booking_id: BOOKING_ID,
+        physical_room_number: "101",
+      });
+
+      const result = await frontDeskService.getAssignment(BOOKING_ID, STAFF);
+
+      expect(mockPrisma.roomAssignment.findUnique).toHaveBeenCalledWith({
+        where: { booking_id: BOOKING_ID },
+      });
+      expect(result.physical_room_number).toBe("101");
+    });
+
+    it("should throw 404 when there is no assignment", async () => {
+      mockFetchBooking.mockResolvedValue(confirmedBooking);
+      mockPrisma.roomAssignment.findUnique.mockResolvedValue(null);
+
+      await expect(
+        frontDeskService.getAssignment(BOOKING_ID, STAFF)
+      ).rejects.toThrow(AppError);
+    });
+
+    it("should reject a receptionist reading another hotel's booking", async () => {
+      mockFetchBooking.mockResolvedValue({
+        ...confirmedBooking,
+        hotel_id: "bbbbbbbb-cccc-4ddd-8eee-ffffffffffff",
+      });
+
+      await expect(
+        frontDeskService.getAssignment(BOOKING_ID, STAFF)
+      ).rejects.toThrow(AppError);
+      expect(mockPrisma.roomAssignment.findUnique).not.toHaveBeenCalled();
     });
   });
 
@@ -315,6 +372,7 @@ describe("IncidentService", () => {
   });
 
   it("should create an incident", async () => {
+    mockFetchBooking.mockResolvedValue(confirmedBooking);
     mockPrisma.guestIncident.create.mockResolvedValue({
       incident_id: "i1",
       status: "open",
@@ -323,18 +381,25 @@ describe("IncidentService", () => {
     const result = await incidentService.create({
       booking_id: BOOKING_ID,
       description: "Canilla goteando",
-    });
+    }, STAFF);
 
     expect(result.status).toBe("open");
+    expect(mockPrisma.guestIncident.create).toHaveBeenCalledWith({
+      data: {
+        booking_id: BOOKING_ID,
+        hotel_id: HOTEL_ID,
+        description: "Canilla goteando",
+      },
+    });
   });
 
   it("should list incidents filtered by booking", async () => {
     mockPrisma.guestIncident.findMany.mockResolvedValue([]);
 
-    await incidentService.list(BOOKING_ID);
+    await incidentService.list(BOOKING_ID, STAFF);
 
     expect(mockPrisma.guestIncident.findMany).toHaveBeenCalledWith({
-      where: { booking_id: BOOKING_ID },
+      where: { hotel_id: HOTEL_ID, booking_id: BOOKING_ID },
       orderBy: { created_at: "desc" },
     });
   });
@@ -342,8 +407,8 @@ describe("IncidentService", () => {
   it("should throw 404 when updating a missing incident", async () => {
     mockPrisma.guestIncident.findUnique.mockResolvedValue(null);
 
-    await expect(
-      incidentService.setStatus("missing-id", "resolved")
-    ).rejects.toThrow(AppError);
+      await expect(
+        incidentService.setStatus("missing-id", "resolved", STAFF)
+      ).rejects.toThrow(AppError);
   });
 });

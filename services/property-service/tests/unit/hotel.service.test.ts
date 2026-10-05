@@ -65,9 +65,12 @@ describe("HotelService", () => {
     const superAdmin = {
       sub: "admin",
       email: "admin@hotelsync.local",
+      email_verified: true,
       role: "SUPER_ADMIN",
       hotel_id: null,
       scope: "global" as const,
+      iss: "hotelsync",
+      aud: "hotelsync-api",
       iat: 0,
       exp: 9999999999,
     };

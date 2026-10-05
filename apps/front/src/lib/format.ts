@@ -7,6 +7,90 @@ export type { Hotel, RoomType };
  * desde Client Components sin arrastrar el módulo servidor.
  */
 
+/**
+ * Moneda de visualización. Los montos del dominio viajan y se cobran
+ * todo en COP (ver billing DEFAULT_CURRENCY); la conversión es SOLO visual.
+ */
+export const CURRENCIES = [
+  "COP",
+  "USD",
+  "EUR",
+  "MXN",
+  "BRL",
+  "CLP",
+  "PEN",
+  "ARS",
+] as const;
+export type Currency = (typeof CURRENCIES)[number];
+export const DEFAULT_CURRENCY: Currency = "COP";
+
+/**
+ * Tasas COP por unidad. El proveedor en vivo (/api/rates) las reemplaza en
+ * cuanto responde; esto queda como fallback si el proveedor cae, para no
+ * romper la UI. ARS es tasa oficial.
+ */
+export const STATIC_COP_PER_UNIT: Record<Currency, number> = {
+  COP: 1,
+  USD: 4100,
+  EUR: 4450,
+  MXN: 240,
+  BRL: 780,
+  CLP: 4.4,
+  PEN: 1100,
+  ARS: 3.4,
+};
+
+function formatterFor(locale: string, currency: string, noDecimals = false) {
+  return new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency,
+    ...(noDecimals ? { maximumFractionDigits: 0 } : {}),
+  });
+}
+
+const moneyFormatters: Record<Currency, Intl.NumberFormat> = {
+  COP: formatterFor("es-CO", "COP", true),
+  USD: formatterFor("en-US", "USD"),
+  EUR: formatterFor("es-ES", "EUR"),
+  MXN: formatterFor("es-MX", "MXN"),
+  BRL: formatterFor("pt-BR", "BRL"),
+  CLP: formatterFor("es-CL", "CLP", true),
+  PEN: formatterFor("es-PE", "PEN"),
+  ARS: formatterFor("es-AR", "ARS"),
+};
+
+export function isCurrency(value: unknown): value is Currency {
+  return (
+    typeof value === "string" &&
+    (CURRENCIES as readonly string[]).includes(value)
+  );
+}
+
+/**
+ * Convierte un monto en COP a la moneda pedida (solo visual). La conversión
+ * se hace una sola vez sobre el total en COP, nunca línea por línea, para no
+ * acumular redondeo.
+ */
+export function convertFromCOP(
+  amountCOP: number | string,
+  currency: Currency,
+  copPerUnit: Record<Currency, number> = STATIC_COP_PER_UNIT
+): number {
+  const rate = copPerUnit[currency] ?? STATIC_COP_PER_UNIT[currency];
+  return Number(amountCOP) / rate;
+}
+
+/** Formatea un monto en COP en la moneda pedida (solo visual). */
+export function formatMoney(
+  amountCOP: number | string,
+  currency: Currency,
+  copPerUnit: Record<Currency, number> = STATIC_COP_PER_UNIT
+): string {
+  return moneyFormatters[currency].format(
+    convertFromCOP(amountCOP, currency, copPerUnit)
+  );
+}
+
 export interface HotelFilters {
   city?: string;
   amenity?: string;

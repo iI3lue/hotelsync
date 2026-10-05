@@ -52,9 +52,12 @@ const USER_ID = "e1b2c3d4-e5f6-4890-abcd-ef1234567890";
 const STAFF = {
   sub: USER_ID,
   email: "staff@example.com",
+  email_verified: true,
   role: "RECEPTIONIST",
   hotel_id: HOTEL_ID,
   scope: "hotel" as const,
+  iss: "hotelsync",
+  aud: "hotelsync-api",
   iat: 0,
   exp: 9999999999,
 };
@@ -88,13 +91,13 @@ describe("BookingService", () => {
       const created = {
         booking_id: VALID_UUID,
         status: "pending",
+        hotel_id: HOTEL_ID,
         guest_id: GENERATED_GUEST_ID,
         guest_name: "Ana",
         guest_email: "ana@example.com",
         guest_phone: "+5491112345678",
         booked_by_user_id: null,
         manage_token_hash: MANAGE_HASH,
-        hotel_id: HOTEL_ID,
         room_type_id: ROOM_TYPE_ID,
         channel: "direct",
         total_amount: 25500,
@@ -146,9 +149,9 @@ describe("BookingService", () => {
       mockPrisma.booking.create.mockResolvedValue({
         booking_id: VALID_UUID,
         status: "pending",
+        hotel_id: HOTEL_ID,
         guest_id: GENERATED_GUEST_ID,
         guest_name: "Ana",
-        hotel_id: HOTEL_ID,
         room_type_id: ROOM_TYPE_ID,
         channel: "direct",
         check_in: new Date("2026-10-01"),
@@ -197,6 +200,7 @@ describe("BookingService", () => {
     const stored = {
       booking_id: VALID_UUID,
       status: "pending",
+      hotel_id: HOTEL_ID,
       manage_token_hash: MANAGE_HASH,
     };
 
@@ -209,6 +213,19 @@ describe("BookingService", () => {
 
       expect(result.booking_id).toBe(VALID_UUID);
       expect(result).not.toHaveProperty("manage_token_hash");
+    });
+
+    it("should reject staff from another hotel", async () => {
+      mockPrisma.booking.findUnique.mockResolvedValue(stored);
+
+      await expect(
+        bookingService.getByIdWithAccess(VALID_UUID, {
+          actor: {
+            ...STAFF,
+            hotel_id: "ffffffff-ffff-4fff-bfff-ffffffffffff",
+          },
+        })
+      ).rejects.toThrow(AppError);
     });
 
     it("should allow the guest manage token", async () => {
@@ -242,11 +259,14 @@ describe("BookingService", () => {
     it("should pass hotel/status/date filters to prisma", async () => {
       mockPrisma.booking.findMany.mockResolvedValue([]);
 
-      await bookingService.list({
-        hotel_id: HOTEL_ID,
-        status: "confirmed",
-        date: "2026-10-02",
-      });
+      await bookingService.list(
+        {
+          hotel_id: HOTEL_ID,
+          status: "confirmed",
+          date: "2026-10-02",
+        },
+        STAFF
+      );
 
       expect(mockPrisma.booking.findMany).toHaveBeenCalledWith({
         where: {
@@ -258,6 +278,27 @@ describe("BookingService", () => {
         orderBy: { check_in: "asc" },
       });
     });
+
+    it("should force the actor hotel even when another is requested", async () => {
+      mockPrisma.booking.findMany.mockResolvedValue([]);
+
+      await bookingService.list(
+        { hotel_id: "ffffffff-ffff-4fff-bfff-ffffffffffff" },
+        STAFF
+      );
+
+      expect(mockPrisma.booking.findMany).toHaveBeenCalledWith({
+        where: { hotel_id: HOTEL_ID },
+        orderBy: { check_in: "asc" },
+      });
+    });
+
+    it("should reject non-staff roles", async () => {
+      await expect(
+        bookingService.list({}, { ...STAFF, role: "GUEST", hotel_id: null })
+      ).rejects.toThrow(AppError);
+      expect(mockPrisma.booking.findMany).not.toHaveBeenCalled();
+    });
   });
 
   describe("confirm", () => {
@@ -267,6 +308,7 @@ describe("BookingService", () => {
         .mockResolvedValueOnce({
           booking_id: VALID_UUID,
           status: "pending",
+          hotel_id: HOTEL_ID,
           version: 0,
           manage_token_hash: MANAGE_HASH,
           manage_token_expires_at: new Date(Date.now() + 3600_000),
@@ -279,7 +321,10 @@ describe("BookingService", () => {
 
       const result = await bookingService.confirm(VALID_UUID, { actor: STAFF });
 
-      expect(mockReserve).toHaveBeenCalledWith(EXPECTED_RANGE);
+      expect(mockReserve).toHaveBeenCalledWith({
+        ...EXPECTED_RANGE,
+        idempotency_key: `booking:${VALID_UUID}:confirm`,
+      });
       expect(mockPrisma.booking.updateMany).toHaveBeenCalledWith({
         where: { booking_id: VALID_UUID, status: "pending", version: 0 },
         data: { status: "confirmed", version: { increment: 1 } },
@@ -293,6 +338,7 @@ describe("BookingService", () => {
         .mockResolvedValueOnce({
           booking_id: VALID_UUID,
           status: "pending",
+          hotel_id: HOTEL_ID,
           version: 0,
           manage_token_hash: MANAGE_HASH,
           manage_token_expires_at: new Date(Date.now() + 3600_000),
@@ -330,6 +376,7 @@ describe("BookingService", () => {
       mockPrisma.booking.findUnique.mockResolvedValue({
         booking_id: VALID_UUID,
         status: "confirmed",
+        hotel_id: HOTEL_ID,
         version: 1,
         manage_token_hash: MANAGE_HASH,
         manage_token_expires_at: new Date(Date.now() + 3600_000),
@@ -347,6 +394,7 @@ describe("BookingService", () => {
       mockPrisma.booking.findUnique.mockResolvedValue({
         booking_id: VALID_UUID,
         status: "pending",
+        hotel_id: HOTEL_ID,
         version: 0,
         manage_token_hash: MANAGE_HASH,
         manage_token_expires_at: new Date(Date.now() + 3600_000),
@@ -366,6 +414,7 @@ describe("BookingService", () => {
       mockPrisma.booking.findUnique.mockResolvedValue({
         booking_id: VALID_UUID,
         status: "pending",
+        hotel_id: HOTEL_ID,
         version: 0,
         manage_token_hash: MANAGE_HASH,
         manage_token_expires_at: new Date(Date.now() + 3600_000),
@@ -386,6 +435,7 @@ describe("BookingService", () => {
       mockPrisma.booking.findUnique.mockResolvedValue({
         booking_id: VALID_UUID,
         status: "pending",
+        hotel_id: HOTEL_ID,
         version: 0,
         manage_token_hash: MANAGE_HASH,
         manage_token_expires_at: new Date(Date.now() + 3600_000),
@@ -398,17 +448,20 @@ describe("BookingService", () => {
       await expect(
         bookingService.confirm(VALID_UUID, { actor: STAFF })
       ).rejects.toThrow(AppError);
-      expect(mockRelease).toHaveBeenCalledWith(EXPECTED_RANGE);
+      expect(mockRelease).toHaveBeenCalledWith({
+        ...EXPECTED_RANGE,
+        idempotency_key: `booking:${VALID_UUID}:confirm-compensate`,
+      });
     });
   });
 
   describe("listByUser", () => {
-    it("should return bookings created by the user or with their email", async () => {
+    it("should return bookings created by the user or with their verified email", async () => {
       mockPrisma.booking.findMany.mockResolvedValue([
         { booking_id: VALID_UUID, manage_token_hash: MANAGE_HASH },
       ]);
 
-      const result = await bookingService.listByUser(USER_ID, "ana@example.com");
+      const result = await bookingService.listByUser(USER_ID, "ana@example.com", true);
 
       expect(mockPrisma.booking.findMany).toHaveBeenCalledWith({
         where: {
@@ -419,6 +472,19 @@ describe("BookingService", () => {
       expect(result).toHaveLength(1);
       expect(result[0]).not.toHaveProperty("manage_token_hash");
     });
+
+    it("should not match by email when it is not verified", async () => {
+      mockPrisma.booking.findMany.mockResolvedValue([]);
+
+      await bookingService.listByUser(USER_ID, "victim@example.com", false);
+
+      expect(mockPrisma.booking.findMany).toHaveBeenCalledWith({
+        where: {
+          OR: [{ booked_by_user_id: USER_ID }],
+        },
+        orderBy: { check_in: "asc" },
+      });
+    });
   });
 
   describe("manage token expiry", () => {
@@ -426,6 +492,7 @@ describe("BookingService", () => {
       mockPrisma.booking.findUnique.mockResolvedValue({
         booking_id: VALID_UUID,
         status: "pending",
+        hotel_id: HOTEL_ID,
         manage_token_hash: MANAGE_HASH,
         manage_token_expires_at: new Date(Date.now() - 1000),
       });
@@ -442,6 +509,7 @@ describe("BookingService", () => {
       mockPrisma.booking.findUnique.mockResolvedValue({
         booking_id: VALID_UUID,
         status: "confirmed",
+        hotel_id: HOTEL_ID,
         manage_token_hash: MANAGE_HASH,
         room_type_id: ROOM_TYPE_ID,
         check_in: new Date("2026-10-01"),
@@ -456,7 +524,10 @@ describe("BookingService", () => {
 
       const result = await bookingService.cancel(VALID_UUID, { actor: STAFF });
 
-      expect(mockRelease).toHaveBeenCalledWith(EXPECTED_RANGE);
+      expect(mockRelease).toHaveBeenCalledWith({
+        ...EXPECTED_RANGE,
+        idempotency_key: `booking:${VALID_UUID}:cancel`,
+      });
       expect(mockPrisma.booking.update).toHaveBeenCalledWith({
         where: { booking_id: VALID_UUID },
         data: { status: "cancelled" },
@@ -478,11 +549,13 @@ describe("BookingService", () => {
       mockPrisma.booking.findUnique.mockResolvedValue({
         booking_id: VALID_UUID,
         status: "pending",
+        hotel_id: HOTEL_ID,
         manage_token_hash: MANAGE_HASH,
       });
       mockPrisma.booking.update.mockResolvedValue({
         booking_id: VALID_UUID,
         status: "cancelled",
+        hotel_id: HOTEL_ID,
       });
 
       const result = await bookingService.cancel(VALID_UUID, {
@@ -497,6 +570,7 @@ describe("BookingService", () => {
       mockPrisma.booking.findUnique.mockResolvedValue({
         booking_id: VALID_UUID,
         status: "pending",
+        hotel_id: HOTEL_ID,
         manage_token_hash: MANAGE_HASH,
       });
 
@@ -510,6 +584,7 @@ describe("BookingService", () => {
       mockPrisma.booking.findUnique.mockResolvedValue({
         booking_id: VALID_UUID,
         status: "cancelled",
+        hotel_id: HOTEL_ID,
         manage_token_hash: MANAGE_HASH,
       });
 

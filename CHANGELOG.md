@@ -2,6 +2,47 @@
 
 Todos los cambios notables en HotelSync. Formato basado en [Keep a Changelog](https://keepachangelog.com/).
 
+## [2026-10-05] — Cierre de ciclo (producción)
+
+### Added
+- Split por microservicio: 1 repo + 1 Render + 1 Neon por servicio
+  (`iI3lue/hotelsync-{property,rate-availability,booking,front-desk,housekeeping,billing,user-service,front}`),
+  todos desplegados y en `live` con `prisma migrate deploy` en arranque
+- Hardening de seguridad: `requireAuth`/`requireRole` en rutas sensibles,
+  alcance por hotel (`hotel_id`/`scope`), claims HS256 (`iss=hotelsync`,
+  `aud=hotelsync-api`, `email_verified`, `alg` fijo), refresh con rotación
+  atómica, nonce obligatorio en `/auth/federated`, `x-service-key` y claves
+  por servicio entre Booking ↔ Front Desk/Housekeeping/Billing
+- Migraciones nuevas: `applied_keys` (R&A), `guest_incidents.hotel_id`
+  (Front Desk), `anonymous_booking` + `manage_token_expiry` (Booking),
+  `unit_uuids` (Front Desk), `task_identity` + `unit_uuid` (Housekeeping),
+  `physical_room_catalog` (Property), `processed_events` (R&A)
+- Login con Google funcionando en prod (Auth0 + PKCE S256 + nonce en
+  cookies HttpOnly, verificación JWKS en user-service)
+- `GET /api/rates` (front): cotización COP en vivo (open.er-api.com, cache
+  server 30 min, fallback con `live:false`) + polling cada 10 min y 8
+  monedas visibles (COP, USD, EUR, MXN, BRL, CLP, PEN, ARS)
+- `AccountNav` (email + Salir) y redirect post-login por rol (staff → `/admin`)
+- `docs/HotelSync-User-Service-Auth.docx`: documento técnico de user-service
+  (JWT/HS256, Auth0, roles, endpoints, glosario, decisiones)
+
+### Fixed
+- BFF: el middleware solo inyecta el Bearer; no rota sesión (las cookies
+  seteadas sobre `NextResponse.next()` se pierden en rewrites externos y
+  dejaban la sesión colgada). La renovación vive en `/api/auth/refresh`,
+  `/api/auth/me` y el retry con single-flight del cliente
+- Endpoints que el monorepo había perdido y el front usa: preservados y
+  asegurados con auth + scope (`GET /v1/folios/by-booking/:bookingId`,
+  `GET /v1/check-in/:bookingId`)
+- `AUTH0_CLIENT_ID` alineado en Render user-service con la app del front
+- Cookie de access a 15 min (estaba en 8h en el front)
+
+### Verified
+- Smoke en prod: register → login → `/v1/users/me` con claims nuevos;
+  reserva anónima create → confirm → cancel con reserve/release cruzado
+  (disponibilidad 10 → 9 → 10); 401 en rutas antes públicas; rastros del
+  smoke eliminados vía SQL
+
 ## [Unreleased]
 
 ### Added
