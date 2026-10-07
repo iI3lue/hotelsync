@@ -75,6 +75,22 @@ services:
       timeout: 5s
       retries: 5
 
+  channel-manager-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: channel_manager_db
+      POSTGRES_USER: hotelsync
+      POSTGRES_PASSWORD: hotelsync_dev
+    ports:
+      - "5439:5432"
+    volumes:
+      - channel_manager_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotelsync -d channel_manager_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
   front-desk-db:
     image: postgres:16-alpine
     environment:
@@ -176,6 +192,10 @@ services:
       FRONT_DESK_SERVICE_KEY: hotelsync-dev-front-desk-key-change-me
       HOUSEKEEPING_SERVICE_KEY: hotelsync-dev-housekeeping-key-change-me
       BILLING_SERVICE_KEY: hotelsync-dev-billing-key-change-me
+      # Ingesta Channel Manager (contrato interno §5.4). Solo desarrollo.
+      CHANNEL_MANAGER_SERVICE_KEY: hotelsync-dev-channel-manager-key-change-me
+      # Clave estable separada para derivar el manage_token idempotente de OTAs.
+      CHANNEL_MANAGER_MANAGE_TOKEN_SECRET: hotelsync-dev-channel-manage-token-secret-change-me
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
       booking-db:
@@ -332,6 +352,33 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  channel-manager-service:
+    build:
+      context: .
+      dockerfile: services/channel-manager-service/Dockerfile
+    ports:
+      - "3008:3008"
+    environment:
+      NODE_ENV: production
+      PORT: "3008"
+      DATABASE_URL: postgresql://hotelsync:hotelsync_dev@channel-manager-db:5432/channel_manager_db
+      BOOKING_SERVICE_URL: http://booking-service:3004/v1
+      RATE_SERVICE_URL: http://rate-availability-service:3002/v1
+      CHANNEL_MANAGER_SERVICE_KEY: hotelsync-dev-channel-manager-key-change-me
+      # Provider-facing simulator key is distinct from all backend service keys.
+      CHANNEL_MANAGER_SIMULATOR_KEY: hotelsync-dev-simulator-provider-key-change-me
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    depends_on:
+      channel-manager-db:
+        condition: service_healthy
+      booking-service:
+        condition: service_started
+      rate-availability-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   property_data:
   rate_availability_data:
@@ -340,5 +387,6 @@ volumes:
   housekeeping_data:
   billing_data:
   user_data:
+  channel_manager_data:
   rabbitmq_data:
   redis_data:

@@ -14,6 +14,7 @@
     "dev:front-desk": "npm run dev --workspace=services/front-desk-service",
     "dev:housekeeping": "npm run dev --workspace=services/housekeeping-service",
     "dev:billing": "npm run dev --workspace=services/billing-service",
+    "dev:channel": "npm run dev --workspace=services/channel-manager-service",
     "dev:front": "npm run dev --workspace=apps/front",
     "dev:user": "npm run dev --workspace=services/user-service",
     "build": "npm run build --workspaces",
@@ -27,6 +28,7 @@
     "migrate:front-desk": "npm exec --workspace=services/front-desk-service -- prisma migrate dev",
     "migrate:housekeeping": "npm exec --workspace=services/housekeeping-service -- prisma migrate dev",
     "migrate:billing": "npm exec --workspace=services/billing-service -- prisma migrate dev",
+    "migrate:channel": "npm exec --workspace=services/channel-manager-service -- prisma migrate dev",
     "migrate:user": "npm exec --workspace=services/user-service -- prisma migrate dev",
     "seed:property": "npm run seed --workspace=services/property-service",
     "seed:rate": "npm run seed --workspace=services/rate-availability-service",
@@ -34,6 +36,7 @@
     "seed:front-desk": "npm run seed --workspace=services/front-desk-service",
     "seed:housekeeping": "npm run seed --workspace=services/housekeeping-service",
     "seed:billing": "npm run seed --workspace=services/billing-service",
+    "seed:channel": "npm run seed --workspace=services/channel-manager-service",
     "seed:user": "npm run seed --workspace=services/user-service"
   },
   "engines": {

@@ -1,4 +1,4 @@
-N# PRD — HotelSync
+# PRD inicial — HotelSync
 
 **Product Requirements Document**
 
@@ -6,9 +6,12 @@ N# PRD — HotelSync
 | --- | --- |
 | Producto | HotelSync |
 | Tipo | Plataforma de gestión hotelera multi-propiedad |
-| Estado | Borrador v1.0 |
+| Estado | Borrador inicial v0.1 — requiere validación |
 | Autor | Equipo HotelSync |
-| Documentos relacionados | `HotelSync_Informacion_Extraida.txt` |
+| Fuente principal | `docs/HotelSync_Arquitectura.docx` |
+| Documentos relacionados | `docs/HotelSync_Informacion_Extraida.txt`, `ARCHITECTURE.md`, `API.md` |
+
+Este borrador convierte la arquitectura existente en necesidades y resultados de producto. Las metas numéricas, los flujos distribuidos y las decisiones marcadas al final son provisionales: no deben tratarse como requisitos aprobados hasta validarlos.
 
 ---
 
@@ -35,7 +38,7 @@ HotelSync centraliza la operación en microservicios y sincroniza en tiempo real
 
 | # | Objetivo | Métrica de éxito |
 | --- | --- | --- |
-| O1 | Eliminar la sobreventa por desincronización de canales | 0 reservas sobrevendidas por conflicto de inventario |
+| O1 | Evitar sobreventas originadas por asignar más inventario interno del disponible y reducir desajustes entre canales | Cero confirmaciones internas por encima del inventario vendible; incidentes de sincronización externa medidos por separado |
 | O2 | Centralizar disponibilidad, tarifas y reservas de la cadena | 100% de propiedades operando en HotelSync |
 | O3 | Optimizar *revenue management* entre propiedades | Aumento sostenido de ADR y RevPAR |
 | O4 | Experiencia de huésped consistente en toda la cadena | NPS de huéspedes recurrente sin degradación por propiedad |
@@ -107,19 +110,19 @@ Organizados por módulo. Cada requisito incluye criterios de aceptación verific
 | ID | Requisito | Criterio de aceptación |
 | --- | --- | --- |
 | RTA-1 | Gestionar inventario por tipo de habitación y fecha | Consulta de disponibilidad devuelve `available_count` correcto para cualquier fecha |
-| RTA-2 | Aplicar reglas de tarifas dinámicas (temporada alta/baja, ocupación proyectada, eventos locales) | Un cambio de regla actualiza la tarifa publicada en tiempo real |
-| RTA-3 | Soporte de bloqueo manual (mantenimiento) | Bloquear inventario reduce `available_count` y publica `availability.updated` |
+| RTA-2 | Aplicar reglas de tarifas dinámicas (temporada alta/baja, ocupación proyectada, eventos locales) | Un cambio de regla actualiza la tarifa consultable y queda disponible para sincronización; objetivo de latencia por definir |
+| RTA-3 | Soporte de bloqueo manual (mantenimiento) | El bloqueo reduce el inventario vendible una sola vez y genera un cambio trazable para los canales |
 | RTA-4 | Consistencia estricta bajo alta concurrencia | En picos (ej. black friday) no se confirman dos reservas sobre el mismo inventario (bloqueo optimista) |
-| RTA-5 | Exponer disponibilidad consolidada al Channel Manager | Cambio de inventario dispara evento `availability.updated` en < 1 s |
+| RTA-5 | Exponer disponibilidad consolidada al Channel Manager | Los cambios de inventario se publican de forma durable para sincronización; latencia objetivo por definir |
 
 ### 5.3 Channel Manager Service
 
 | ID | Requisito | Criterio de aceptación |
 | --- | --- | --- |
-| CM-1 | Sincronizar disponibilidad y tarifas con OTAs en tiempo real | Todo `availability.updated` interno se propaga a Booking.com, Expedia y Airbnb |
+| CM-1 | Sincronizar disponibilidad y tarifas con los canales habilitados | Cada cambio se procesa de forma trazable para los canales configurados; proveedores y latencia objetivo por definir |
 | CM-2 | Mapear tipos de habitación internos a IDs externos por canal | `channel_mappings` permite traducir inventario por canal |
-| CM-3 | Recibir reservas entrantes de OTAs vía webhook | Una reserva OTA se traduce al formato interno y publica `booking.created` |
-| CM-4 | Garantía de entrega ante fallos de red | Desincronización detectada se reintenta y alerta antes de causar sobreventa |
+| CM-3 | Recibir reservas entrantes de OTAs vía webhook | Una notificación válida se registra una sola vez y se incorpora al flujo interno de reservas |
+| CM-4 | Recuperarse de fallos de red o del proveedor | Los cambios pendientes se reintentan y los fallos persistentes quedan visibles para resolución operativa |
 | CM-5 | Registrar historial de sincronización | Cada intento queda en `sync_log` con resultado y timestamp |
 
 ### 5.4 Booking Service
@@ -130,13 +133,13 @@ Organizados por módulo. Cada requisito incluye criterios de aceptación verific
 | BK-2 | Gestionar reservas por central telefónica | Reserva telefónica ingresa y se integra al inventario |
 | BK-3 | Gestionar reservas de canales externos (via CM) | Reserva OTA traducida se incorpora como reserva de canal |
 | BK-4 | Bloqueo optimista al confirmar habitación | Dos intentos simultáneos: solo uno confirma, el otro rechaza o espera |
-| BK-5 | Publicar eventos del ciclo de vida | Publica `booking.created` y `booking.cancelled`; cancela libera inventario |
+| BK-5 | Informar cambios relevantes del ciclo de vida | Creación, confirmación, cancelación y finalización se reflejan de forma consistente para los consumidores; estado y evento exactos por definir |
 
 ### 5.5 Front Desk Service
 
 | ID | Requisito | Criterio de aceptación |
 | --- | --- | --- |
-| FD-1 | Preparar lista de llegadas del día | Consume `booking.created` y lista llegadas esperadas |
+| FD-1 | Preparar lista de llegadas del día | La lista presenta las reservas válidas que el hotel debe atender, sin tratar una solicitud pendiente como una reserva confirmada |
 | FD-2 | Check-in con asignación de habitación física concreta | La habitación física asignada puede diferir del tipo reservado |
 | FD-3 | Check-out registrado | Completa la estancia y publica `checkout.completed` |
 | FD-4 | Registrar solicitudes especiales del huésped | Solicitud queda asociada al booking y visible en front desk |
@@ -193,8 +196,8 @@ Organizados por módulo. Cada requisito incluye criterios de aceptación verific
 | Área | Requisito |
 | --- | --- |
 | **Concurrencia** | Rate & Availability debe mantener consistencia estricta en picos de venta simultánea (ej. black friday de viajes) |
-| **Rendimiento** | Sincronización de inventario con OTAs en tiempo real; consultas de disponibilidad respondidas desde Redis con invalidación inmediata |
-| **Entrega garantizada** | Comunicación asíncrona con RabbitMQ con garantías de entrega frente a canales externos |
+| **Rendimiento** | Consultas de disponibilidad de baja latencia y sincronización oportuna con canales; percentiles y objetivos numéricos por definir |
+| **Entrega de eventos** | Los cambios pendientes de sincronización se conservan, procesan idempotentemente, reintentan y exponen cuando fallan; la confirmación de entrega de una OTA depende de cada proveedor |
 | **Seguridad** | Cifrado de datos personales de huéspedes; pasarela de pago PCI-DSS sin almacenar datos completos de tarjeta |
 | **Disponibilidad** | Rolling updates en Render; sin downtime en despliegues |
 | **Observabilidad** | Métricas Prometheus, dashboards Grafana, logs centralizados con trazabilidad por `booking_id` |
@@ -207,31 +210,29 @@ Organizados por módulo. Cada requisito incluye criterios de aceptación verific
 ### 7.1 Reserva directa (web propia)
 
 1. Huésped consulta disponibilidad → Rate & Availability Service (con caché Redis).
-2. Huésped confirma reserva → Booking Service aplica **bloqueo optimista**.
-3. Booking Service publica `booking.created`.
-4. Channel Manager propaga la reducción de inventario a las OTAs.
-5. Front Desk consume `booking.created` y prepara la lista de llegadas.
+2. Huésped solicita una reserva → Booking Service valida y asegura inventario antes de presentarla como confirmada.
+3. La reserva confirmada actualiza la disponibilidad vendible.
+4. Los canales habilitados reciben la actualización y Front Desk puede preparar la llegada.
 
 ### 7.2 Reserva entrante de OTA (webhook)
 
-1. OTA envía reserva vía webhook → Channel Manager Service.
-2. Channel Manager traduce al formato interno y publica `booking.created`.
-3. El inventario interno se actualiza de forma consistente.
-4. Ante conflicto de sobreventa detectado tras la sincronización → **compensación (saga)**: reubicar al huésped en habitación equivalente o notificar al equipo de revenue management.
+1. OTA envía una notificación de reserva → Channel Manager Service.
+2. Channel Manager valida el origen, evita duplicados y traduce los datos al formato interno.
+3. La reserva se incorpora al registro canónico de Booking y el inventario se actualiza una sola vez.
+4. Si HotelSync no puede aceptar o reconciliar la reserva, el caso queda trazado y visible para resolución operativa; la política de compensación está pendiente de definición.
 
 ### 7.3 Ciclo de estancia completo
 
 ```
-booking.created → check-in (asignación habitación física) → checkout
-  → checkout.completed → housekeeping (tarea automática)
-  → checkout.completed → billing (cierre de factura)
-  → booking.completed → loyalty (acumulación de puntos)
+reserva confirmada → check-in (asignación habitación física) → checkout
+  → housekeeping (tarea automática) y billing (cierre del folio)
+  → estancia completada → loyalty (acumulación de puntos)
 ```
 
 ### 7.4 Saga de sincronización con canales externos
 
 - Cada reserva confirmada en una OTA debe reflejarse de forma consistente en el inventario interno.
-- Si la sincronización falla o se detecta conflicto, se dispara compensación con reintentos y alerta al revenue management antes de que ocurra una venta duplicada.
+- Si la sincronización falla, se reintenta y se alerta al equipo responsable. La solución para conflictos que el proveedor ya confirmó requiere una política de negocio explícita; el sistema no puede garantizar por sí solo que una OTA externa revierta una venta.
 
 ---
 
@@ -252,16 +253,18 @@ booking.created → check-in (asignación habitación física) → checkout
 
 ## 9. Métricas de Éxito
 
+Las metas de esta tabla son propuestas iniciales. Antes de usarlas como compromisos hay que acordar definiciones, período de medición, línea base y responsables. La arquitectura fuente no fija umbrales de latencia ni disponibilidad.
+
 | Métrica | Meta |
 | --- | --- |
-| Reservas sobrevendidas por conflicto de inventario | 0 |
-| Latencia de sincronización con OTAs | Tiempo real (< 1 s) |
+| Confirmaciones internas por encima del inventario vendible | 0; incidentes de desincronización externa se miden por separado |
+| Latencia de sincronización con OTAs | Por definir por proveedor y percentil |
 | Ocupación promedio | Mejora sostenida por propiedad |
 | ADR (tarifa promedio diaria) | Aumento sostenido |
 | RevPAR (ingreso por habitación disponible) | Aumento sostenido |
 | Tiempo de operación de check-in/check-out | Reducción vs. proceso manual |
-| Exactitud del inventario reportado a canales | 100% sin discrepancias |
-| Disponibilidad del servicio en picos de venta | ≥ 99.9% |
+| Diferencias entre inventario interno y cada canal | Medir por proveedor; umbral de tolerancia por definir |
+| Disponibilidad del servicio en picos de venta | Objetivo y ventana de medición por definir |
 
 ---
 
@@ -269,7 +272,8 @@ booking.created → check-in (asignación habitación física) → checkout
 
 | Riesgo | Impacto | Mitigación |
 | --- | --- | --- |
-| Desincronización con una OTA | Sobreventa, penalizaciones contractuales | RabbitMQ con garantías de entrega, `sync_log`, alertas tempranas |
+| Desincronización con una OTA | Sobreventa, penalizaciones contractuales | Outbox, confirmación del broker, consumidor idempotente, reintentos y conciliación/alertas; la confirmación final depende de la API del proveedor |
+| API, credenciales o certificación de una OTA no disponibles | Integración real bloqueada o incompleta | Confirmar proveedor piloto, acceso de pruebas y condiciones de integración antes de comprometer fechas |
 | Pico de concurrencia en ventas | Pérdida de reservas o doble venta | Bloqueo optimista, pruebas de carga k6, escalado independiente del servicio |
 | Consistencia entre servicios | Datos de reserva inconsistentes | Eventos con trazabilidad por `booking_id` y patrón Saga |
 | Cumplimiento fiscal multi-país | Multas y rechazo de facturas | Módulo de facturación configurable por país |
@@ -285,7 +289,7 @@ booking.created → check-in (asignación habitación física) → checkout
 - Front Desk básico (check-in/check-out, asignación de habitación).
 
 ### Fase 2 — Canales y operación
-- Channel Manager Service con sincronización a Booking.com, Expedia, Airbnb.
+- Channel Manager Service con el proveedor piloto que se confirme; el orden y alcance de Booking.com, Expedia y Airbnb están pendientes.
 - Housekeeping Service y Billing Service.
 - Eventos `checkout.completed` y `booking.completed`.
 
@@ -303,8 +307,29 @@ booking.created → check-in (asignación habitación física) → checkout
 
 El producto se considera listo cuando:
 
-1. Las 9 funcionalidades clave (secciones 5.1–5.9) cumplen sus criterios de aceptación.
-2. 0 sobreventas en pruebas de carga de picos de venta (k6).
-3. La sincronización con OTAs es tiempo real y queda trazada en `sync_log`.
-4. El ciclo completo reserva → checkout → facturación → fidelización opera sin intervención manual.
-5. Las métricas de éxito (sección 9) se verifican contra el dashboard de Analytics.
+1. Los requisitos priorizados y las decisiones abiertas de la sección 13 fueron aprobados y cumplen criterios verificables.
+2. Las pruebas de concurrencia no permiten confirmar más inventario del que HotelSync considera vendible.
+3. Las integraciones habilitadas registran resultado, reintentos y fallos recuperables.
+4. El ciclo priorizado de reserva, estancia y checkout opera de punta a punta.
+5. Las métricas aprobadas tienen definiciones y resultados verificables.
+
+---
+
+## 13. Decisiones pendientes antes de comprometer implementación
+
+Estas preguntas no invalidan el borrador. Determinan límites del producto, prioridad y criterios de aceptación. Se resolverán de forma iterativa antes de convertir los requisitos afectados en compromisos.
+
+| Prioridad | Decisión pendiente | Supuesto provisional / recomendación | Por qué importa |
+| --- | --- | --- | --- |
+| P0 | ¿HotelSync atenderá a una sola cadena hotelera o será un producto SaaS para varias cadenas independientes? | El documento fuente describe una cadena con varias propiedades. Mantener ese supuesto hasta confirmación. | Cambia el modelo de cliente, aislamiento de datos, administración, roles y reportes. |
+| P0 | ¿Qué OTA se integrará primero y hay acceso a ambiente de pruebas? | Empezar con un proveedor piloto y una interfaz de conector común; no prometer las tres integraciones en la primera entrega. | Cada proveedor tiene contratos, credenciales y procesos de habilitación distintos. |
+| P0 | ¿Quién crea y confirma la reserva OTA dentro de HotelSync? | Recomendación: Channel Manager valida y normaliza la notificación; Booking conserva el registro canónico y coordina la reserva de inventario. | La arquitectura fuente asigna `booking.created` tanto al Channel Manager para reservas OTA como a Booking para el ciclo interno, sin precisar el dueño del registro ni prevenir duplicados. |
+| P0 | ¿Cómo se define el inventario vendible frente a habitaciones ocupadas y bloqueadas por mantenimiento? | Definir una única fórmula de capacidad antes de fijar el esquema y los criterios de disponibilidad. | La fuente describe el bloqueo como reducción de disponibilidad y aumento de `blocked_count`, pero también calcula disponibilidad restando ese contador; esas reglas podrían descontar dos veces. |
+| P1 | ¿El huésped debe crear una cuenta para reservar? | El repositorio actual permite reservas sin cuenta y cuentas opcionales; confirmar que ese comportamiento es el esperado para el producto. | Afecta el flujo de reserva, recuperación/cancelación y datos personales requeridos. |
+| P1 | ¿Qué incluye Billing: registro de cargos y factura, o también cobro en línea? ¿En qué países y monedas opera? | Mantener fuera del alcance el almacenamiento de datos completos de tarjeta; definir después proveedor de pagos, países e impuestos. | Cambia cumplimiento, manejo de datos, integraciones y aceptación de facturas. |
+| P1 | ¿Qué significan exactamente ocupación, ADR, RevPAR y “previsión de demanda”? | Acordar fórmula, zona horaria, fuente de datos y período para cada indicador antes de validar Analytics. | Sin definiciones compartidas, los paneles pueden mostrar cifras distintas para el mismo hotel. |
+| P1 | ¿API Gateway será un servicio independiente o la entrada actual del frontend/BFF? | La arquitectura fuente propone gateway independiente; el repositorio ya usa BFF/rewrite y autenticación en los servicios. | Evita presupuestar dos capas de entrada sin una necesidad de producto clara. |
+
+## 14. Estado de referencia del repositorio
+
+La arquitectura objetivo enumera nueve dominios de negocio: Property, Rate & Availability, Channel Manager, Booking, Front Desk, Housekeeping, Billing, Loyalty y Analytics. El repositorio ya contiene Property, Rate & Availability, Booking, Front Desk, Housekeeping y Billing, además de `user-service` como servicio de identidad. Channel Manager, Loyalty y Analytics no aparecen como servicios implementados en el monorepo inspeccionado. Rate & Availability tampoco publica actualmente los eventos de inventario y tarifa requeridos por Channel Manager. Esta lista describe el punto de partida, no modifica el alcance objetivo.
