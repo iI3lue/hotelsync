@@ -304,3 +304,77 @@ export async function postJson<T>(
 ): Promise<T> {
   return clientPost<T>(url, body, headers, opts);
 }
+
+// ─── Staff (SUPER_ADMIN) ──────────────────────────────────────
+
+export interface StaffAssignment {
+  assignment_id: string;
+  user_id: string;
+  role: string;
+  hotel_id: string | null;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface StaffMember {
+  user_id: string;
+  email: string;
+  name: string;
+  phone: string | null;
+  picture_url: string | null;
+  status: string;
+  email_verified: boolean;
+  assignments: StaffAssignment[];
+}
+
+export interface CreateStaffInput {
+  email: string;
+  password?: string;
+  name: string;
+  phone?: string;
+  role: string;
+  hotel_id?: string;
+}
+
+export interface StaffCreated {
+  user: StaffMember;
+  initial_password?: string;
+}
+
+export async function fetchStaff(
+  query?: { hotel_id?: string; role?: string }
+): Promise<StaffMember[]> {
+  const params = new URLSearchParams();
+  if (query?.hotel_id) params.set("hotel_id", query.hotel_id);
+  if (query?.role) params.set("role", query.role);
+  const qs = params.toString();
+  return clientFetch<StaffMember[]>(`/api/user/staff${qs ? `?${qs}` : ""}`);
+}
+
+export async function createStaff(
+  data: CreateStaffInput
+): Promise<StaffCreated> {
+  return clientPost<StaffCreated>("/api/user/staff", data);
+}
+
+export async function updateStaff(
+  userId: string,
+  data: { name?: string; phone?: string; status?: string }
+): Promise<StaffMember> {
+  const res = await fetchWithSession(
+    `/api/user/staff/${encodeURIComponent(userId)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(data),
+    },
+    { retries: 0 }
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      (err as { message?: string }).message || `Error ${res.status}`
+    );
+  }
+  return res.json() as Promise<StaffMember>;
+}

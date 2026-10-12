@@ -1,15 +1,23 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { logout, me, type AuthProfile } from "@/lib/auth-client";
+import {
+  useViewAs,
+  type ViewAsRole,
+  VIEW_AS_LABELS,
+} from "@/lib/view-as";
+import { defaultRouteForRole, isAllowedPathForRole } from "@/lib/routes";
+import ViewAsSelector from "@/components/ViewAsSelector";
+import ViewingAsBanner from "@/components/ViewingAsBanner";
 import ThemeToggle from "@/components/ThemeToggle";
 
 const NAV_LINKS = [
   { href: "/",             label: "Inicio" },
   { href: "/buscar",       label: "Buscar" },
-  { href: "/reservas/nueva", label: "Reservar" },
+  { href: "/mis-reservas", label: "Mis reservas" },
 ];
 
 function UserMenu({ profile, onLogout }: { profile: AuthProfile; onLogout: () => void }) {
@@ -23,9 +31,20 @@ function UserMenu({ profile, onLogout }: { profile: AuthProfile; onLogout: () =>
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="true"
-        className="flex h-9 w-9 items-center justify-center rounded-full bg-brand-gold text-xs font-bold text-brand-navy shadow-gold transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold"
+        aria-label={`Menú de ${profile.name || profile.email}`}
+        className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-full bg-brand-gold text-xs font-bold text-brand-navy shadow-gold transition-transform hover:scale-105 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-gold"
       >
-        {initials}
+        {profile.picture_url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={profile.picture_url}
+            alt=""
+            referrerPolicy="no-referrer"
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          initials
+        )}
       </button>
 
       {open && (
@@ -37,12 +56,30 @@ function UserMenu({ profile, onLogout }: { profile: AuthProfile; onLogout: () =>
           />
           <div className="animate-scale-in absolute right-0 top-11 z-40 min-w-52 overflow-hidden rounded-2xl border border-white/10 bg-white shadow-elevated dark:bg-brand-navy-800">
             <div className="border-b border-gray-100 px-4 py-3 dark:border-white/6">
-              <p className="text-xs text-gray-400">Conectado como</p>
-              <p className="mt-0.5 truncate text-sm font-medium text-brand-navy dark:text-gray-100">
-                {profile.email}
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-xs text-gray-400">Conectado como</p>
+                <span className="rounded bg-brand-gold/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-brand-gold">
+                  {VIEW_AS_LABELS[profile.role as ViewAsRole] ?? profile.role}
+                </span>
+              </div>
+              <p className="mt-1 truncate text-sm font-medium text-brand-navy dark:text-gray-100">
+                {profile.name || profile.email}
               </p>
+              {profile.name && (
+                <p className="truncate text-xs text-gray-400">{profile.email}</p>
+              )}
             </div>
             <div className="py-1">
+              <Link
+                href="/cuenta/perfil"
+                onClick={() => setOpen(false)}
+                className="flex w-full items-center gap-2.5 px-4 py-2.5 text-sm text-gray-700 transition-colors hover:bg-gray-50 dark:text-gray-300 dark:hover:bg-white/5"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" />
+                </svg>
+                Mi perfil
+              </Link>
               <Link
                 href="/mis-reservas"
                 onClick={() => setOpen(false)}
@@ -89,12 +126,68 @@ export default function NavbarClient() {
   const pathname = usePathname();
   const router = useRouter();
   const [profile, setProfile] = useState<AuthProfile | null>(null);
+  const loadingRef = useRef(true);
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { viewAs, viewedRole, setViewAs } = useViewAs(profile?.role ?? null);
+
+  const navLinks = (() => {
+    switch (viewedRole) {
+      case "RECEPTIONIST":
+        return [{ href: "/admin/recepcion", label: "Recepción" }];
+      case "HOUSEKEEPING":
+        return [{ href: "/admin/housekeeping", label: "Limpieza" }];
+      case "MANAGER":
+        if (pathname.startsWith("/admin")) {
+          return [
+            { href: "/admin", label: "Panel" },
+            { href: "/admin/hotels", label: "Hoteles" },
+            { href: "/", label: "Vista huésped" },
+          ];
+        }
+        return [
+          { href: "/", label: "Inicio" },
+          { href: "/buscar", label: "Buscar" },
+          { href: "/admin", label: "Panel de Gestión" },
+        ];
+      case "SUPER_ADMIN":
+        if (pathname.startsWith("/admin")) {
+          return [
+            { href: "/admin", label: "Panel" },
+            { href: "/admin/hotels", label: "Hoteles" },
+            { href: "/admin/recepcion", label: "Recepción" },
+            { href: "/admin/housekeeping", label: "Limpieza" },
+            { href: "/", label: "Sitio público" },
+          ];
+        }
+        return [...NAV_LINKS, { href: "/admin", label: "Administrar" }];
+      case "GUEST":
+      default:
+        return NAV_LINKS;
+    }
+  })();
+
+  function handleSelectRole(role: ViewAsRole | null) {
+    setViewAs(role);
+    const target = defaultRouteForRole(role ?? "SUPER_ADMIN");
+    router.push(target);
+  }
 
   useEffect(() => {
-    void me().then(setProfile);
+    void me().then((p) => {
+      setProfile(p);
+      loadingRef.current = false;
+    });
   }, []);
+
+  useEffect(() => {
+    if (loadingRef.current) return;
+    if (profile || viewAs) {
+      if (!isAllowedPathForRole(viewedRole, pathname)) {
+        router.replace(defaultRouteForRole(viewedRole));
+      }
+    }
+  }, [profile, viewAs, viewedRole, pathname, router]);
 
   useEffect(() => {
     const handler = () => setScrolled(window.scrollY > 8);
@@ -116,6 +209,7 @@ export default function NavbarClient() {
   }
 
   return (
+    <>
     <header
       className={`sticky top-0 z-50 transition-all duration-300 ${
         scrolled
@@ -135,7 +229,7 @@ export default function NavbarClient() {
 
         {/* Desktop Nav */}
         <nav aria-label="Principal" className="hidden items-center gap-1 md:flex">
-          {NAV_LINKS.map((link) => (
+          {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
@@ -152,6 +246,11 @@ export default function NavbarClient() {
 
         {/* Right side */}
         <div className="flex items-center gap-2">
+          {profile?.role === "SUPER_ADMIN" && (
+            <div className="hidden md:block">
+              <ViewAsSelector viewAs={viewAs} onSelect={handleSelectRole} />
+            </div>
+          )}
           <ThemeToggle />
 
           {profile ? (
@@ -188,7 +287,7 @@ export default function NavbarClient() {
       {mobileOpen && (
         <div className="animate-slide-up-sm border-t border-gray-100 bg-white px-4 pb-4 dark:border-white/6 dark:bg-brand-navy-800 md:hidden">
           <nav className="flex flex-col gap-1 pt-2">
-            {NAV_LINKS.map((link) => (
+            {navLinks.map((link) => (
               <Link
                 key={link.href}
                 href={link.href}
@@ -201,6 +300,11 @@ export default function NavbarClient() {
                 {link.label}
               </Link>
             ))}
+            {profile?.role === "SUPER_ADMIN" && (
+              <div className="mt-1 border-t border-gray-100 pt-2 dark:border-white/6">
+                <ViewAsSelector viewAs={viewAs} onSelect={handleSelectRole} compact />
+              </div>
+            )}
             {!profile && (
               <Link
                 href="/cuenta/entrar"
@@ -213,5 +317,12 @@ export default function NavbarClient() {
         </div>
       )}
     </header>
+    {viewAs && (
+      <ViewingAsBanner
+        viewAs={viewAs}
+        onExit={() => handleSelectRole(null)}
+      />
+    )}
+    </>
   );
 }

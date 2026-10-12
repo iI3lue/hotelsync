@@ -56,24 +56,30 @@ export default async function RecepcionPage({
   }).toString()}`;
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8">
-      <h1 className="mb-2 text-3xl font-bold">Recepción</h1>
-      <p className="mb-6 max-w-2xl break-words text-gray-600 dark:text-gray-300">
-        Reservas automáticas desde Booking Service (pending incluidas) y llegadas
-        del día desde Front Desk (solo confirmed del read model por eventos).
-        Check-in con habitación física y check-out (emite{" "}
-        <code className="rounded bg-gray-100 px-1 dark:bg-gray-700">checkout.completed</code>).
-      </p>
+    <div className="mx-auto w-full max-w-7xl px-4 py-4">
+      <div className="mb-6 space-y-1">
+        <div className="flex items-center gap-2">
+          <h1 className="font-display text-2xl font-bold tracking-tight text-brand-navy dark:text-white sm:text-3xl">
+            Recepción y Check-in
+          </h1>
+          <span className="rounded-full bg-brand-gold/15 px-2.5 py-0.5 text-xs font-semibold text-brand-gold">
+            Front Desk
+          </span>
+        </div>
+        <p className="max-w-2xl text-sm text-gray-500 dark:text-gray-400">
+          Control de llegadas confirmadas, asignación de habitación física y check-in/out operativo.
+        </p>
+      </div>
 
       <form
         method="get"
         action="/admin/recepcion"
-        className="mb-6 rounded-lg bg-white p-4 shadow dark:bg-gray-800"
+        className="mb-8 rounded-2xl border border-gray-200/80 bg-white/80 p-5 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-brand-navy-800/80"
       >
         <input type="hidden" name="tab" value={activeTab} />
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-end">
           <div className="sm:col-span-2">
-            <label htmlFor="hotel-id" className={labelClass}>
+            <label htmlFor="hotel-id" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300">
               Hotel
             </label>
             {hotels.length > 0 ? (
@@ -81,7 +87,7 @@ export default async function RecepcionPage({
                 id="hotel-id"
                 name="hotel_id"
                 defaultValue={effectiveHotel}
-                className={`${inputClass} w-full`}
+                className="h-10 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm font-medium text-gray-900 transition-colors focus:border-brand-gold focus:outline-none focus:ring-2 focus:ring-brand-gold/30 dark:border-white/10 dark:bg-brand-navy-900 dark:text-white"
               >
                 {hotels.map((h) => (
                   <option key={h.hotel_id} value={h.hotel_id}>
@@ -98,7 +104,7 @@ export default async function RecepcionPage({
                 spellCheck={false}
                 defaultValue={effectiveHotel}
                 placeholder="Pegá el hotel_id…"
-                className={`${inputClass} w-full`}
+                className="h-10 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm font-medium text-gray-900 transition-colors focus:border-brand-gold focus:outline-none focus:ring-2 focus:ring-brand-gold/30 dark:border-white/10 dark:bg-brand-navy-900 dark:text-white"
               />
             )}
           </div>
@@ -106,58 +112,67 @@ export default async function RecepcionPage({
             <DatePickerButton name="date" label="Fecha" defaultValue={effectiveDate} />
           </div>
         </div>
-        <button
-          type="submit"
-          className="mt-4 rounded bg-blue-600 px-4 py-2 font-medium text-white transition-colors hover:bg-blue-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 touch-manipulation"
-        >
-          Filtrar
-        </button>
-        {effectiveDate ? (
-          <a
-            href={allDatesHref}
-            className="ml-3 mt-4 inline-block rounded px-2 py-2 text-sm font-medium text-blue-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 dark:text-blue-400"
+
+        <div className="mt-4 flex flex-wrap items-center gap-3 pt-2 border-t border-gray-100 dark:border-white/6">
+          <button
+            type="submit"
+            className="inline-flex h-9 items-center justify-center rounded-xl bg-brand-navy px-4 text-xs font-bold uppercase tracking-wider text-white shadow-xs transition-all hover:bg-brand-navy-900 active:scale-95 dark:bg-brand-gold dark:text-brand-navy dark:hover:bg-brand-gold-dark"
           >
-            Ver todas las fechas
-          </a>
-        ) : (
-          <span className="ml-3 mt-4 inline-block rounded bg-blue-50 px-2 py-2 text-sm font-medium text-blue-800 dark:bg-blue-950/40 dark:text-blue-300">
-            Todas las fechas ·{" "}
-            <a href={todayHref} className="underline underline-offset-2 hover:no-underline">
-              volver a hoy
+            Filtrar
+          </button>
+          {effectiveDate ? (
+            <a
+              href={allDatesHref}
+              className="text-xs font-medium text-brand-gold hover:underline"
+            >
+              Ver todas las fechas
             </a>
-          </span>
-        )}
+          ) : (
+            <span className="inline-flex items-center gap-1 rounded-lg bg-brand-gold/10 px-2.5 py-1 text-xs font-medium text-brand-navy dark:text-brand-gold">
+              Todas las fechas ·{" "}
+              <a href={todayHref} className="font-bold underline underline-offset-2 hover:no-underline">
+                volver a hoy
+              </a>
+            </span>
+          )}
+        </div>
       </form>
 
       {!ready ? (
-        <p className="text-gray-500 dark:text-gray-400">
+        <div className="rounded-2xl border border-dashed border-gray-200 p-8 text-center text-gray-500 dark:border-white/10 dark:text-gray-400">
           Todavía no hay hoteles cargados. Creá uno primero para operar recepción.
-        </p>
+        </div>
       ) : (
-        <div>
-          <div className="mb-4 flex gap-2" role="tablist" aria-label="Vistas de recepción">
+        <div className="space-y-4">
+          <div className="flex flex-wrap gap-2 border-b border-gray-200 pb-3 dark:border-white/10" role="tablist" aria-label="Vistas de recepción">
             <a
               href={reservasHref}
               role="tab"
               aria-selected={activeTab === "reservas"}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors touch-manipulation ${
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all touch-manipulation ${
                 activeTab === "reservas"
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-700 shadow hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                  ? "bg-brand-gold text-brand-navy shadow-xs"
+                  : "border border-gray-200/80 bg-white text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:bg-brand-navy-800 dark:text-gray-300 dark:hover:bg-white/5"
               }`}
             >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+              </svg>
               Reservas (auto)
             </a>
             <a
               href={llegadasHref}
               role="tab"
               aria-selected={activeTab === "llegadas"}
-              className={`rounded-full px-4 py-2 text-sm font-medium transition-colors touch-manipulation ${
+              className={`inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition-all touch-manipulation ${
                 activeTab === "llegadas"
-                  ? "bg-blue-600 text-white"
-                  : "bg-white text-gray-700 shadow hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                  ? "bg-brand-gold text-brand-navy shadow-xs"
+                  : "border border-gray-200/80 bg-white text-gray-700 hover:bg-gray-50 dark:border-white/10 dark:bg-brand-navy-800 dark:text-gray-300 dark:hover:bg-white/5"
               }`}
             >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
               Llegadas del día
             </a>
           </div>

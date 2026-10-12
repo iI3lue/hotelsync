@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import GoogleButton from "@/components/GoogleButton";
 import { login, me } from "@/lib/auth-client";
+import { defaultRouteForRole, isAllowedPathForRole } from "@/lib/routes";
 
 function safeReturnTo(value: string | undefined): string {
   if (value && value.startsWith("/") && !value.startsWith("//")) return value;
@@ -11,7 +12,13 @@ function safeReturnTo(value: string | undefined): string {
 }
 
 function postLoginDest(profile: { role: string }, returnTo: string): string {
-  if (profile.role !== "GUEST" && returnTo === "/mis-reservas") return "/admin";
+  const roleDefault = defaultRouteForRole(profile.role);
+  if (profile.role === "RECEPTIONIST" || profile.role === "HOUSEKEEPING") {
+    return roleDefault;
+  }
+  if (!isAllowedPathForRole(profile.role, returnTo) || returnTo === "/mis-reservas") {
+    return roleDefault;
+  }
   return returnTo;
 }
 
@@ -114,8 +121,11 @@ export default function EnterForm({
     setError(null);
     try {
       const profile = await login(email.trim(), password);
-      router.push(postLoginDest(profile, returnTo));
-      router.refresh();
+      // Recarga completa (no navegación cliente): el navbar y el resto de
+      // la UI montan de cero y ven la sesión nueva. El toast lo muestra
+      // LoginToast desde el marcador ?login=email.
+      const dest = postLoginDest(profile, returnTo);
+      window.location.href = `${dest}${dest.includes("?") ? "&" : "?"}login=email`;
     } catch (err) {
       setError(
         err instanceof Error
