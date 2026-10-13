@@ -16,7 +16,10 @@ function postLoginDest(profile: { role: string }, returnTo: string): string {
   if (profile.role === "RECEPTIONIST" || profile.role === "HOUSEKEEPER") {
     return roleDefault;
   }
-  if (!isAllowedPathForRole(profile.role, returnTo) || returnTo === "/mis-reservas") {
+  if (!isAllowedPathForRole(profile.role, returnTo)) {
+    return roleDefault;
+  }
+  if (profile.role !== "GUEST" && returnTo === "/mis-reservas") {
     return roleDefault;
   }
   return returnTo;
