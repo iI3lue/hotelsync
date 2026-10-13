@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { fetchArrivals, fetchBookings, fetchHotels } from "@/lib/api";
+import { fetchArrivals, fetchBookings, fetchHotelById, fetchHotels } from "@/lib/api";
+import { getSessionScope } from "@/lib/server-session";
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -15,14 +16,31 @@ function formattedToday(): string {
 }
 
 export default async function DashboardPage() {
+  const session = await getSessionScope();
+  // El manager solo opera su hotel asignado.
+  const isManager = session.role === "MANAGER";
+  const assignedHotelId = session.hotel_id;
+
   let hotelsCount = 0;
   let firstHotelId = "";
-  try {
-    const hotels = await fetchHotels();
-    hotelsCount = hotels.length;
-    firstHotelId = hotels[0]?.hotel_id || "";
-  } catch {
-    hotelsCount = 0;
+  if (isManager) {
+    if (assignedHotelId) {
+      try {
+        const assigned = await fetchHotelById(assignedHotelId);
+        hotelsCount = 1;
+        firstHotelId = assigned.hotel_id;
+      } catch {
+        hotelsCount = 0;
+      }
+    }
+  } else {
+    try {
+      const hotels = await fetchHotels();
+      hotelsCount = hotels.length;
+      firstHotelId = hotels[0]?.hotel_id || "";
+    } catch {
+      hotelsCount = 0;
+    }
   }
 
   let arrivalsToday = 0;
@@ -177,7 +195,7 @@ export default async function DashboardPage() {
           Módulos de Operación
         </h2>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        <div className={`grid grid-cols-1 gap-4 ${isManager ? "md:grid-cols-2 xl:grid-cols-4" : "md:grid-cols-3"}`}>
           {/* Recepción */}
           <Link
             href={receptionHref}
@@ -252,6 +270,33 @@ export default async function DashboardPage() {
               Supervisá la transición de estados de limpieza tras cada check-out, asigná camaristas y mantené el inventario habitable.
             </p>
           </Link>
+
+          {/* Personal (solo manager: gestión de cuentas de su hotel) */}
+          {isManager ? (
+            <Link
+              href="/admin/staff"
+              className="group rounded-2xl border border-gray-200/80 bg-white p-6 shadow-xs transition-all hover:border-brand-gold/40 hover:shadow-card dark:border-white/10 dark:bg-brand-navy-800"
+            >
+              <div className="flex items-center gap-3">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-500/10 text-purple-600 transition-transform group-hover:scale-105 dark:text-purple-400">
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.8} d="M15 19.128a9.38 9.38 0 002.625.372 9.337 9.337 0 004.121-.952 4.125 4.125 0 00-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 018.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0111.964-3.07M12 6.375a3.375 3.375 0 11-6.75 0 3.375 3.375 0 016.75 0zm8.25 2.25a2.625 2.625 0 11-5.25 0 2.625 2.625 0 015.25 0z" />
+                  </svg>
+                </div>
+                <div>
+                  <h3 className="font-display font-semibold text-brand-navy dark:text-white group-hover:text-brand-gold transition-colors">
+                    Personal
+                  </h3>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    Recepción y limpieza
+                  </p>
+                </div>
+              </div>
+              <p className="mt-4 text-xs text-gray-600 dark:text-gray-300">
+                Creá cuentas de recepcionistas y personal de limpieza de tu hotel y gestioná sus accesos.
+              </p>
+            </Link>
+          ) : null}
         </div>
       </div>
     </div>

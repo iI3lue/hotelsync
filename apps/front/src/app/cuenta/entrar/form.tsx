@@ -13,7 +13,7 @@ function safeReturnTo(value: string | undefined): string {
 
 function postLoginDest(profile: { role: string }, returnTo: string): string {
   const roleDefault = defaultRouteForRole(profile.role);
-  if (profile.role === "RECEPTIONIST" || profile.role === "HOUSEKEEPING") {
+  if (profile.role === "RECEPTIONIST" || profile.role === "HOUSEKEEPER") {
     return roleDefault;
   }
   if (!isAllowedPathForRole(profile.role, returnTo) || returnTo === "/mis-reservas") {

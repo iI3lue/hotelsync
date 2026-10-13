@@ -128,33 +128,64 @@ export default function HousekeepingBoard({
 }) {
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [hotelId, setHotelId] = useState("");
+  const [myRole, setMyRole] = useState<string | null>(null);
   const [mine, setMine] = useState<CleaningTask[] | null>(null);
   const [hotel, setHotel] = useState<CleaningTask[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchHotels()
-      .then((list) => {
-        setHotels(list);
-        if (!hotelId && list.length > 0) {
-          setHotelId(list[0].hotel_id);
-        }
-      })
-      .catch(() => setHotels([]));
-  }, [hotelId]);
+  const isHousekeeper = myRole === "HOUSEKEEPER";
 
   useEffect(() => {
-    void params.then((p) => {
-      if (p.hotel_id) {
-        setHotelId(p.hotel_id);
+    let cancelled = false;
+    void me().then((profile) => {
+      if (cancelled) return;
+      const role = profile?.role ?? null;
+      setMyRole(role);
+      if (role === "HOUSEKEEPER") {
+        // El housekeeper solo opera su hotel asignado: no se expone el
+        // catálogo completo y se ignora cualquier ?hotel_id= manipulado
+        // (el backend lo revalida con 403).
+        if (!profile?.hotel_id) {
+          setHotels([]);
+          return;
+        }
+        setHotelId(profile.hotel_id);
+        fetchHotels()
+          .then((list) => {
+            if (cancelled) return;
+            const mine = list.find((h) => h.hotel_id === profile.hotel_id);
+            setHotels(mine ? [mine] : []);
+          })
+          .catch(() => {
+            if (!cancelled) setHotels([]);
+          });
         return;
       }
-      void me().then((profile) => {
-        if (profile?.hotel_id) setHotelId(profile.hotel_id);
-      });
+      fetchHotels()
+        .then((list) => {
+          if (cancelled) return;
+          setHotels(list);
+          setHotelId(
+            (current) => current || profile?.hotel_id || list[0]?.hotel_id || ""
+          );
+        })
+        .catch(() => {
+          if (!cancelled) setHotels([]);
+        });
     });
-  }, [params]);
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    // Se espera al perfil: el ?hotel_id= se ignora para HOUSEKEEPER.
+    if (myRole === null || myRole === "HOUSEKEEPER") return;
+    void params.then((p) => {
+      if (p.hotel_id) setHotelId(p.hotel_id);
+    });
+  }, [params, myRole]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -220,8 +251,8 @@ export default function HousekeepingBoard({
           </p>
         </div>
 
-        {/* Hotel selector */}
-        {hotels.length > 0 && (
+        {/* Hotel selector (solo manager/super admin; el housekeeper ve su hotel fijo) */}
+        {!isHousekeeper && hotels.length > 0 && (
           <div className="flex items-center gap-2">
             <label htmlFor="housekeeping-hotel-select" className="sr-only">
               Cambiar hotel
@@ -250,7 +281,36 @@ export default function HousekeepingBoard({
             </button>
           </div>
         )}
+        {isHousekeeper && hotelId && (
+          <div className="flex items-center gap-2">
+            <p className="flex h-10 items-center rounded-xl border border-gray-200 bg-brand-cream-700 px-3 text-sm font-medium text-brand-navy dark:border-white/10 dark:bg-brand-navy dark:text-gray-50">
+              {hotels[0]?.name ?? "Mi hotel asignado"}
+            </p>
+            <button
+              type="button"
+              onClick={() => void load()}
+              title="Recargar tareas"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-gray-300 bg-white text-gray-600 transition-colors hover:bg-gray-50 active:scale-95 dark:border-white/10 dark:bg-brand-navy-800 dark:text-gray-300"
+            >
+              <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+            </button>
+          </div>
+        )}
       </div>
+
+      {isHousekeeper && !hotelId ? (
+        <div role="alert" className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50/90 p-4 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">
+          <svg className="h-5 w-5 shrink-0 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          <p className="font-medium">
+            Tu cuenta no tiene un hotel asignado. Pedile a tu manager que revise tu
+            asignación antes de operar limpieza.
+          </p>
+        </div>
+      ) : null}
 
       {error ? (
         <div role="alert" className="flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50/90 p-4 text-sm text-red-800 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200">

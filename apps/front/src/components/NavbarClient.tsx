@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { logout, me, type AuthProfile } from "@/lib/auth-client";
@@ -126,7 +126,15 @@ export default function NavbarClient() {
   const pathname = usePathname();
   const router = useRouter();
   const [profile, setProfile] = useState<AuthProfile | null>(null);
+  const [profileLoading, setProfileLoading] = useState(true);
   const loadingRef = useRef(true);
+
+  const loadProfile = useCallback(async () => {
+    const p = await me();
+    setProfile(p);
+    setProfileLoading(false);
+    loadingRef.current = false;
+  }, []);
   const [scrolled, setScrolled] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const { viewAs, viewedRole, setViewAs } = useViewAs(profile?.role ?? null);
@@ -135,13 +143,14 @@ export default function NavbarClient() {
     switch (viewedRole) {
       case "RECEPTIONIST":
         return [{ href: "/admin/recepcion", label: "Recepción" }];
-      case "HOUSEKEEPING":
+      case "HOUSEKEEPER":
         return [{ href: "/admin/housekeeping", label: "Limpieza" }];
       case "MANAGER":
         if (pathname.startsWith("/admin")) {
           return [
             { href: "/admin", label: "Panel" },
             { href: "/admin/hotels", label: "Hoteles" },
+            { href: "/admin/staff", label: "Personal" },
             { href: "/", label: "Vista huésped" },
           ];
         }
@@ -173,12 +182,20 @@ export default function NavbarClient() {
     router.push(target);
   }
 
+  // Revalida sin recarga manual: al montar, al volver a la pestaña o al
+  // navegar, una sesión restaurada (o un backend que ya despertó)
+  // actualiza el menú solo.
   useEffect(() => {
-    void me().then((p) => {
-      setProfile(p);
-      loadingRef.current = false;
-    });
-  }, []);
+    const onVisible = () => {
+      if (document.visibilityState === "visible") void loadProfile();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [loadProfile]);
+
+  useEffect(() => {
+    void loadProfile();
+  }, [pathname, loadProfile]);
 
   useEffect(() => {
     if (loadingRef.current) return;
@@ -227,22 +244,29 @@ export default function NavbarClient() {
           Hotel<span className="text-brand-gold">Sync</span>
         </Link>
 
-        {/* Desktop Nav */}
-        <nav aria-label="Principal" className="hidden items-center gap-1 md:flex">
-          {navLinks.map((link) => (
-            <Link
-              key={link.href}
-              href={link.href}
-              className={`nav-link px-3 py-2 rounded-lg ${
-                pathname === link.href
-                  ? "text-brand-gold after:w-full"
-                  : ""
-              }`}
-            >
-              {link.label}
-            </Link>
-          ))}
-        </nav>
+        {/* Desktop Nav (esqueleto mientras se resuelve la sesión: evita el flash de menú guest) */}
+        {profileLoading ? (
+          <div
+            aria-hidden="true"
+            className="hidden h-9 w-48 animate-pulse rounded-lg bg-gray-200/70 dark:bg-white/10 md:block"
+          />
+        ) : (
+          <nav aria-label="Principal" className="hidden items-center gap-1 md:flex">
+            {navLinks.map((link) => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`nav-link px-3 py-2 rounded-lg ${
+                  pathname === link.href
+                    ? "text-brand-gold after:w-full"
+                    : ""
+                }`}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </nav>
+        )}
 
         {/* Right side */}
         <div className="flex items-center gap-2">
@@ -255,6 +279,11 @@ export default function NavbarClient() {
 
           {profile ? (
             <UserMenu profile={profile} onLogout={handleLogout} />
+          ) : profileLoading ? (
+            <span
+              aria-hidden="true"
+              className="hidden h-9 w-9 animate-pulse rounded-full bg-gray-200/70 dark:bg-white/10 md:block"
+            />
           ) : (
             <Link
               href="/cuenta/entrar"
@@ -305,7 +334,7 @@ export default function NavbarClient() {
                 <ViewAsSelector viewAs={viewAs} onSelect={handleSelectRole} compact />
               </div>
             )}
-            {!profile && (
+            {!profile && !profileLoading && (
               <Link
                 href="/cuenta/entrar"
                 className="mt-2 rounded-xl bg-brand-gold px-4 py-3 text-center text-sm font-semibold text-brand-navy"

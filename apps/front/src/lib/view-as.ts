@@ -10,7 +10,7 @@ export const VIEW_AS_ROLES = [
   "SUPER_ADMIN",
   "MANAGER",
   "RECEPTIONIST",
-  "HOUSEKEEPING",
+  "HOUSEKEEPER",
   "GUEST",
 ] as const;
 
@@ -20,7 +20,7 @@ export const VIEW_AS_LABELS: Record<ViewAsRole, string> = {
   SUPER_ADMIN: "Super Admin",
   MANAGER: "Manager",
   RECEPTIONIST: "Recepcionista",
-  HOUSEKEEPING: "Limpieza",
+  HOUSEKEEPER: "Limpieza",
   GUEST: "Invitado",
 };
 
@@ -83,11 +83,14 @@ export function adminSectionsFor(
   switch (viewedRole) {
     case "RECEPTIONIST":
       return all.filter((s) => s.href === "/admin/recepcion");
-    case "HOUSEKEEPING":
+    case "HOUSEKEEPER":
       return all.filter((s) => s.href === "/admin/housekeeping");
     case "MANAGER":
       return all.filter(
-        (s) => s.href === "/admin" || s.href === "/admin/hotels"
+        (s) =>
+          s.href === "/admin" ||
+          s.href === "/admin/hotels" ||
+          s.href === "/admin/staff"
       );
     case "SUPER_ADMIN":
       return all.filter(

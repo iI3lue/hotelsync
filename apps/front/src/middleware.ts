@@ -13,11 +13,13 @@ import { NextRequest, NextResponse } from "next/server";
  * en el reintento silencioso de /api/auth/me y en el retry con
  * single-flight de api-client (fetchWithSession).
  *
- * Además: protección de rutas /admin a nivel servidor. Decodifica el JWT
- * (sin verificar firma — eso lo hace cada microservicio con el Bearer)
- * para obtener el rol y redirigir si el rol no permite el acceso. Esto
- * evita parpadeos de contenido no autorizado antes del redirect en
- * cliente. La seguridad real sigue en el backend.
+ * Además: protección de rutas /admin a nivel servidor y bloqueo del
+ * portal público para el personal operativo (RECEPTIONIST/HOUSEKEEPER
+ * redirigen a su área). Decodifica el JWT (sin verificar firma — eso lo
+ * hace cada microservicio con el Bearer) para obtener el rol y redirigir
+ * si el rol no permite el acceso. Esto evita parpadeos de contenido no
+ * autorizado antes del redirect en cliente. La seguridad real sigue en
+ * el backend.
  */
 
 interface JwtPayload {
@@ -41,7 +43,7 @@ function defaultRouteForRole(role: string): string {
   switch (role) {
     case "RECEPTIONIST":
       return "/admin/recepcion";
-    case "HOUSEKEEPING":
+    case "HOUSEKEEPER":
       return "/admin/housekeeping";
     case "MANAGER":
     case "SUPER_ADMIN":
@@ -52,17 +54,22 @@ function defaultRouteForRole(role: string): string {
   }
 }
 
+function isStaffRole(role: string): boolean {
+  return role === "RECEPTIONIST" || role === "HOUSEKEEPER";
+}
+
 function isAllowedAdminPath(role: string, pathname: string): boolean {
   if (role === "SUPER_ADMIN") return true;
   switch (role) {
     case "RECEPTIONIST":
       return pathname.startsWith("/admin/recepcion");
-    case "HOUSEKEEPING":
+    case "HOUSEKEEPER":
       return pathname.startsWith("/admin/housekeeping");
     case "MANAGER":
       return (
         pathname === "/admin" ||
-        pathname.startsWith("/admin/hotels")
+        pathname.startsWith("/admin/hotels") ||
+        pathname.startsWith("/admin/staff")
       );
     default:
       return false;
@@ -78,28 +85,49 @@ export function middleware(request: NextRequest) {
 
   const pathname = request.nextUrl.pathname;
   const isAdminPath = pathname.startsWith("/admin");
+  const isApiPath = pathname.startsWith("/api/");
 
-  if (isAdminPath) {
-    const role = access ? decodeJwtRole(access) : null;
+  // Las llamadas a la API solo reciben el Bearer inyectado, nunca redirect.
+  if (isApiPath) {
+    return NextResponse.next({ request: { headers } });
+  }
 
-    if (access && !role) {
-      return NextResponse.next({ request: { headers } });
-    }
+  const role = access ? decodeJwtRole(access) : null;
 
-    if (!role || role === "GUEST") {
-      const loginUrl = new URL("/cuenta/entrar", request.url);
-      loginUrl.searchParams.set("returnTo", pathname);
-      return NextResponse.redirect(loginUrl);
-    }
-
-    if (!isAllowedAdminPath(role, pathname)) {
+  if (!isAdminPath) {
+    // Personal operativo: el portal público está bloqueado, va a su área.
+    // Se excluye /cuenta (perfil permitido; el login redirige solo).
+    if (role && isStaffRole(role) && !pathname.startsWith("/cuenta")) {
       return NextResponse.redirect(new URL(defaultRouteForRole(role), request.url));
     }
+    return NextResponse.next({ request: { headers } });
+  }
+
+  if (access && !role) {
+    return NextResponse.next({ request: { headers } });
+  }
+
+  if (!role || role === "GUEST") {
+    const loginUrl = new URL("/cuenta/entrar", request.url);
+    loginUrl.searchParams.set("returnTo", pathname);
+    return NextResponse.redirect(loginUrl);
+  }
+
+  if (!isAllowedAdminPath(role, pathname)) {
+    return NextResponse.redirect(new URL(defaultRouteForRole(role), request.url));
   }
 
   return NextResponse.next({ request: { headers } });
 }
 
 export const config = {
-  matcher: ["/api/((?!auth).*)", "/admin/:path*"],
+  matcher: [
+    "/api/((?!auth).*)",
+    "/admin/:path*",
+    "/",
+    "/buscar",
+    "/mis-reservas",
+    "/hotels/:path*",
+    "/reservas/:path*",
+  ],
 };

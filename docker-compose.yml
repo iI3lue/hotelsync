@@ -162,6 +162,8 @@ services:
       AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
       # Clave servicio-a-servicio (Booking -> R&A). Solo desarrollo.
       SERVICE_API_KEY: hotelsync-dev-service-key-change-me
+      # Resolución room_type -> hotel para el scope de MANAGER (R&A -> Property).
+      PROPERTY_SERVICE_URL: http://property-service:3001/v1
       REDIS_URL: redis://redis:6379
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:

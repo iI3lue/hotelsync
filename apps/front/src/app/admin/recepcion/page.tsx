@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import ReceptionBoard from "@/components/ReceptionBoard";
 import BookingsAutoTable from "@/components/BookingsAutoTable";
 import DatePickerButton from "@/components/DatePickerButton";
-import { fetchHotels } from "@/lib/api";
+import { fetchHotelById, fetchHotels } from "@/lib/api";
+import { getSessionScope } from "@/lib/server-session";
 
 export const metadata: Metadata = {
   title: "Recepción en HotelSync",
@@ -18,21 +19,51 @@ const inputClass =
 const labelClass =
   "block text-sm font-medium text-gray-700 mb-1 dark:text-gray-200";
 
+/** Label y caja compartidos por Hotel y Fecha para que ambas columnas queden alineadas. */
+const fieldLabelClass =
+  "mb-1.5 block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300";
+const fieldBoxClass =
+  "h-10 w-full rounded-xl border border-gray-200 bg-brand-cream-700 px-3 text-sm font-medium text-brand-navy transition-colors focus:border-brand-gold focus:outline-none focus:ring-2 focus:ring-brand-gold/30 dark:border-white/10 dark:bg-brand-navy dark:text-gray-50";
+const dateTriggerClass = `inline-flex items-center text-left touch-manipulation ${fieldBoxClass}`;
+
 export default async function RecepcionPage({
   searchParams,
 }: {
   searchParams: Promise<{ hotel_id?: string; date?: string; tab?: string }>;
 }) {
   const { hotel_id, date, tab } = await searchParams;
+  const session = await getSessionScope();
+  const isReceptionist = session.role === "RECEPTIONIST";
+  const assignedHotelId = session.hotel_id;
 
   let hotels: { hotel_id: string; name: string }[] = [];
-  try {
-    hotels = await fetchHotels();
-  } catch {
-    hotels = [];
+  if (isReceptionist) {
+    // El recepcionista solo opera su hotel asignado: no se lista el
+    // catálogo completo ni se acepta ?hotel_id= de otro hotel.
+    if (assignedHotelId) {
+      try {
+        const assigned = await fetchHotelById(assignedHotelId);
+        hotels = [{ hotel_id: assigned.hotel_id, name: assigned.name }];
+      } catch {
+        hotels = [{ hotel_id: assignedHotelId, name: "Mi hotel asignado" }];
+      }
+    } else {
+      hotels = [];
+    }
+  } else {
+    try {
+      hotels = await fetchHotels();
+    } catch {
+      hotels = [];
+    }
   }
 
-  const effectiveHotel = hotel_id || hotels[0]?.hotel_id || "";
+  // Para RECEPTIONIST se ignora el ?hotel_id= manipulado: siempre el
+  // hotel de su asignación. El backend (requireDeskScope) lo revalida
+  // con 403 ante cualquier intento de operar otro hotel.
+  const effectiveHotel = isReceptionist
+    ? (assignedHotelId ?? "")
+    : hotel_id || hotels[0]?.hotel_id || "";
   // Fecha vacía = "todas las fechas" (solo aplica al tab Reservas;
   // Llegadas es vista-día y usa hoy como fallback).
   const effectiveDate = date || "";
@@ -77,17 +108,41 @@ export default async function RecepcionPage({
         className="mb-8 rounded-2xl border border-gray-200/80 bg-white/80 p-5 shadow-sm backdrop-blur-md dark:border-white/10 dark:bg-brand-navy-800/80"
       >
         <input type="hidden" name="tab" value={activeTab} />
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-end">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-start">
           <div className="sm:col-span-2">
-            <label htmlFor="hotel-id" className="mb-1.5 block text-xs font-semibold uppercase tracking-wider text-gray-600 dark:text-gray-300">
+            <label htmlFor="hotel-id" className={fieldLabelClass}>
               Hotel
             </label>
-            {hotels.length > 0 ? (
+            {isReceptionist ? (
+              effectiveHotel ? (
+                <>
+                  <input type="hidden" name="hotel_id" value={effectiveHotel} />
+                  <p
+                    id="hotel-id"
+                    className={`flex items-center ${fieldBoxClass}`}
+                  >
+                    {hotels[0]?.name ?? "Mi hotel asignado"}
+                  </p>
+                  <p className="mt-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    Operás el hotel asignado a tu cuenta. No podés cambiar a otro hotel.
+                  </p>
+                </>
+              ) : (
+                <p
+                  id="hotel-id"
+                  role="alert"
+                  className="rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-medium text-red-800 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-200"
+                >
+                  Tu cuenta no tiene un hotel asignado. Pedile a tu manager que revise tu
+                  asignación antes de operar recepción.
+                </p>
+              )
+            ) : hotels.length > 0 ? (
               <select
                 id="hotel-id"
                 name="hotel_id"
                 defaultValue={effectiveHotel}
-                className="h-10 w-full rounded-xl border border-gray-300 bg-white px-3 text-sm font-medium text-gray-900 transition-colors focus:border-brand-gold focus:outline-none focus:ring-2 focus:ring-brand-gold/30 dark:border-white/10 dark:bg-brand-navy-900 dark:text-white"
+                className={fieldBoxClass}
               >
                 {hotels.map((h) => (
                   <option key={h.hotel_id} value={h.hotel_id}>
@@ -109,7 +164,13 @@ export default async function RecepcionPage({
             )}
           </div>
           <div>
-            <DatePickerButton name="date" label="Fecha" defaultValue={effectiveDate} />
+            <DatePickerButton
+              name="date"
+              label="Fecha"
+              defaultValue={effectiveDate}
+              triggerClassName={dateTriggerClass}
+              labelClassName={fieldLabelClass}
+            />
           </div>
         </div>
 

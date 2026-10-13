@@ -30,7 +30,7 @@ describe("resolveViewedRole", () => {
 describe("defaultRouteForRole", () => {
   it("asigna la ruta por defecto correspondiente a cada rol", () => {
     expect(defaultRouteForRole("RECEPTIONIST")).toBe("/admin/recepcion");
-    expect(defaultRouteForRole("HOUSEKEEPING")).toBe("/admin/housekeeping");
+    expect(defaultRouteForRole("HOUSEKEEPER")).toBe("/admin/housekeeping");
     expect(defaultRouteForRole("MANAGER")).toBe("/admin");
     expect(defaultRouteForRole("SUPER_ADMIN")).toBe("/admin");
     expect(defaultRouteForRole("GUEST")).toBe("/");
@@ -46,15 +46,17 @@ describe("isAllowedPathForRole", () => {
   });
 
   it("limpieza solo accede a housekeeping y cuenta", () => {
-    expect(isAllowedPathForRole("HOUSEKEEPING", "/admin/housekeeping")).toBe(true);
-    expect(isAllowedPathForRole("HOUSEKEEPING", "/cuenta/perfil")).toBe(true);
-    expect(isAllowedPathForRole("HOUSEKEEPING", "/")).toBe(false);
-    expect(isAllowedPathForRole("HOUSEKEEPING", "/admin/recepcion")).toBe(false);
+    expect(isAllowedPathForRole("HOUSEKEEPER", "/admin/housekeeping")).toBe(true);
+    expect(isAllowedPathForRole("HOUSEKEEPER", "/cuenta/perfil")).toBe(true);
+    expect(isAllowedPathForRole("HOUSEKEEPER", "/")).toBe(false);
+    expect(isAllowedPathForRole("HOUSEKEEPER", "/admin/recepcion")).toBe(false);
   });
 
-  it("manager accede a admin, hoteles y vista pública", () => {
+  it("manager accede a admin, hoteles, personal y vista pública", () => {
     expect(isAllowedPathForRole("MANAGER", "/admin")).toBe(true);
     expect(isAllowedPathForRole("MANAGER", "/admin/hotels")).toBe(true);
+    expect(isAllowedPathForRole("MANAGER", "/admin/staff")).toBe(true);
+    expect(isAllowedPathForRole("MANAGER", "/admin/recepcion")).toBe(false);
     expect(isAllowedPathForRole("MANAGER", "/")).toBe(true);
     expect(isAllowedPathForRole("MANAGER", "/buscar")).toBe(true);
   });
@@ -74,15 +76,16 @@ describe("adminSectionsFor", () => {
   });
 
   it("limpieza solo ve Limpieza", () => {
-    expect(adminSectionsFor("HOUSEKEEPING").map((s) => s.href)).toEqual([
+    expect(adminSectionsFor("HOUSEKEEPER").map((s) => s.href)).toEqual([
       "/admin/housekeeping",
     ]);
   });
 
-  it("manager ve Panel y Hoteles", () => {
+  it("manager ve Panel, Hoteles y Personal", () => {
     expect(adminSectionsFor("MANAGER").map((s) => s.href)).toEqual([
       "/admin",
       "/admin/hotels",
+      "/admin/staff",
     ]);
   });
 

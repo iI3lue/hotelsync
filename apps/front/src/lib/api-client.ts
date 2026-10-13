@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import type { Availability, Hotel, PhysicalRoom, RoomType } from "./api";
 import { authHeader } from "./auth-client";
@@ -66,8 +66,8 @@ async function fetchWithSession(
   opts: RequestOptions = {}
 ): Promise<Response> {
   const timeoutMs = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  // Solo GET/HEAD se reintentan: un POST reintentado duplicaría la
-  // operación (doble reserva, doble cargo) si el primero sí llegó.
+  // Solo GET/HEAD se reintentan: un POST reintentado duplicarÃ­a la
+  // operaciÃ³n (doble reserva, doble cargo) si el primero sÃ­ llegÃ³.
   const maxRetries = opts.retries ?? (isIdempotent(init) ? 1 : 0);
   let attempt = 0;
   for (;;) {
@@ -122,7 +122,7 @@ export async function clientPost<T>(
       body: JSON.stringify(body),
     },
     // Los POST nunca se reintentan (ver fetchWithSession); solo se les
-    // puede dar más timeout para backends dormidos.
+    // puede dar mÃ¡s timeout para backends dormidos.
     { ...opts, retries: 0 }
   );
   if (!res.ok) {
@@ -265,14 +265,14 @@ export async function fetchAvailability(
 ): Promise<Availability> {
   return clientFetch<Availability>(
     `/api/rate/availability?room_type_id=${encodeURIComponent(roomTypeId)}&date=${encodeURIComponent(date)}`,
-    // Despierta al R&A dormido: operación larga de lectura.
+    // Despierta al R&A dormido: operaciÃ³n larga de lectura.
     { timeoutMs: LONG_TIMEOUT_MS }
   );
 }
 
 /**
  * Disponibilidad de un rango en UN solo request (el calendario pide el mes
- * entero en vez de un GET por día). Máximo 62 noches por llamada.
+ * entero en vez de un GET por dÃ­a). MÃ¡ximo 62 noches por llamada.
  */
 export async function fetchAvailabilityRange(
   roomTypeId: string,
@@ -281,7 +281,7 @@ export async function fetchAvailabilityRange(
 ): Promise<Record<string, Availability>> {
   return clientFetch<Record<string, Availability>>(
     `/api/rate/availability/range?room_type_id=${encodeURIComponent(roomTypeId)}&from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
-    // Despierta al R&A dormido: operación larga de lectura.
+    // Despierta al R&A dormido: operaciÃ³n larga de lectura.
     { timeoutMs: LONG_TIMEOUT_MS }
   );
 }
@@ -295,7 +295,7 @@ export async function blockInventory(data: {
   return clientPost<Availability>("/api/rate/blocks", data);
 }
 
-/** POST genérico para acciones (check-in/out, confirm/cancel, etc.). */
+/** POST genÃ©rico para acciones (check-in/out, confirm/cancel, etc.). */
 export async function postJson<T>(
   url: string,
   body: unknown,
@@ -305,7 +305,7 @@ export async function postJson<T>(
   return clientPost<T>(url, body, headers, opts);
 }
 
-// ─── Staff (SUPER_ADMIN) ──────────────────────────────────────
+// â”€â”€â”€ Staff (SUPER_ADMIN) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 export interface StaffAssignment {
   assignment_id: string;
@@ -348,13 +348,13 @@ export async function fetchStaff(
   if (query?.hotel_id) params.set("hotel_id", query.hotel_id);
   if (query?.role) params.set("role", query.role);
   const qs = params.toString();
-  return clientFetch<StaffMember[]>(`/api/user/staff${qs ? `?${qs}` : ""}`);
+  return clientFetch<StaffMember[]>(`/api/users/staff${qs ? `?${qs}` : ""}`);
 }
 
 export async function createStaff(
   data: CreateStaffInput
 ): Promise<StaffCreated> {
-  return clientPost<StaffCreated>("/api/user/staff", data);
+  return clientPost<StaffCreated>("/api/users/staff", data);
 }
 
 export async function updateStaff(
@@ -362,7 +362,7 @@ export async function updateStaff(
   data: { name?: string; phone?: string; status?: string }
 ): Promise<StaffMember> {
   const res = await fetchWithSession(
-    `/api/user/staff/${encodeURIComponent(userId)}`,
+    `/api/users/staff/${encodeURIComponent(userId)}`,
     {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
@@ -378,3 +378,59 @@ export async function updateStaff(
   }
   return res.json() as Promise<StaffMember>;
 }
+
+// ─── Personal de un hotel (SUPER_ADMIN en cualquiera, MANAGER en el suyo) ───
+
+export interface CreateHotelStaffInput {
+  email: string;
+  password?: string;
+  name: string;
+  phone?: string;
+  role: string;
+}
+
+export async function fetchHotelStaff(
+  hotelId: string,
+  query?: { role?: string }
+): Promise<StaffMember[]> {
+  const params = new URLSearchParams();
+  if (query?.role) params.set("role", query.role);
+  const qs = params.toString();
+  return clientFetch<StaffMember[]>(
+    `/api/users/hotels/${encodeURIComponent(hotelId)}/staff${qs ? `?${qs}` : ""}`
+  );
+}
+
+export async function createHotelStaff(
+  hotelId: string,
+  data: CreateHotelStaffInput
+): Promise<StaffCreated> {
+  return clientPost<StaffCreated>(
+    `/api/users/hotels/${encodeURIComponent(hotelId)}/staff`,
+    data
+  );
+}
+
+export async function setHotelStaffActive(
+  hotelId: string,
+  userId: string,
+  isActive: boolean
+): Promise<StaffAssignment> {
+  const res = await fetchWithSession(
+    `/api/users/hotels/${encodeURIComponent(hotelId)}/staff/${encodeURIComponent(userId)}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ is_active: isActive }),
+    },
+    { retries: 0 }
+  );
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      (err as { message?: string }).message || `Error ${res.status}`
+    );
+  }
+  return res.json() as Promise<StaffAssignment>;
+}
+

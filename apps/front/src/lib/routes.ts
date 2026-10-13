@@ -15,7 +15,7 @@ export function defaultRouteForRole(role: string): string {
   switch (role) {
     case "RECEPTIONIST":
       return ROUTES.adminReception;
-    case "HOUSEKEEPING":
+    case "HOUSEKEEPER":
       return ROUTES.adminHousekeeping;
     case "MANAGER":
     case "SUPER_ADMIN":
@@ -27,18 +27,27 @@ export function defaultRouteForRole(role: string): string {
 }
 
 export function isAllowedPathForRole(role: string, pathname: string): boolean {
-  if (!pathname.startsWith("/admin")) return true;
   if (role === "SUPER_ADMIN") return true;
 
+  // Personal operativo: solo su área + cuenta. El portal público (home,
+  // catálogo, reservas) está bloqueado y redirige a su panel.
+  if (role === "RECEPTIONIST" || role === "HOUSEKEEPER") {
+    if (pathname.startsWith("/admin")) {
+      return role === "RECEPTIONIST"
+        ? pathname.startsWith(ROUTES.adminReception)
+        : pathname.startsWith(ROUTES.adminHousekeeping);
+    }
+    return pathname.startsWith("/cuenta");
+  }
+
+  if (!pathname.startsWith("/admin")) return true;
+
   switch (role) {
-    case "RECEPTIONIST":
-      return pathname.startsWith(ROUTES.adminReception);
-    case "HOUSEKEEPING":
-      return pathname.startsWith(ROUTES.adminHousekeeping);
     case "MANAGER":
       return (
         pathname === ROUTES.admin ||
-        pathname.startsWith(ROUTES.adminHotels)
+        pathname.startsWith(ROUTES.adminHotels) ||
+        pathname.startsWith("/admin/staff")
       );
     default:
       return false;

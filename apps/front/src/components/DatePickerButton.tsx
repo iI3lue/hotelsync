@@ -22,6 +22,10 @@ interface DatePickerButtonProps {
   id?: string;
   /** Si se pasa, renderiza un hidden input para formularios GET clásicos. */
   name?: string;
+  /** Override visual del trigger (solo modo normal): permite alinear con inputs h-10 del admin. */
+  triggerClassName?: string;
+  /** Override visual del label (solo modo normal). */
+  labelClassName?: string;
   /** Compact mode: hide label, use inline text trigger (for SearchBar). */
   compact?: boolean;
   /** Hero mode: white text on dark background trigger. */
@@ -49,6 +53,8 @@ export default function DatePickerButton({
   minDate,
   id,
   name,
+  triggerClassName,
+  labelClassName,
   compact = false,
   heroMode = false,
   rangeFrom,
@@ -92,7 +98,7 @@ export default function DatePickerButton({
     ? heroMode
       ? "bg-transparent text-sm font-medium text-white placeholder-blue-100/40 outline-none cursor-pointer w-full text-left"
       : "bg-transparent text-sm font-medium text-brand-navy outline-none cursor-pointer w-full text-left dark:text-white"
-    : buttonClass;
+    : (triggerClassName ?? buttonClass);
 
   // Rango ya elegido, solo visual: marca el otro extremo y sombrea el medio.
   const rangeFromDate = rangeFrom ? fromIsoDate(rangeFrom) : undefined;
@@ -110,7 +116,7 @@ export default function DatePickerButton({
   return (
     <div ref={boxRef} className="relative min-w-0 w-full">
       {!compact && (
-        <span id={id ? `${id}-label` : undefined} className={labelClass}>
+        <span id={id ? `${id}-label` : undefined} className={labelClassName ?? labelClass}>
           {label}
         </span>
       )}
