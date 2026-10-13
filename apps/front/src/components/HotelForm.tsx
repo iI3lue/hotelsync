@@ -34,6 +34,7 @@ export default function HotelForm() {
   const [city, setCity] = useState("");
   const [country, setCountry] = useState("");
   const [timezone, setTimezone] = useState("America/Bogota");
+  const [imageUrl, setImageUrl] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -56,6 +57,7 @@ export default function HotelForm() {
         city,
         country,
         timezone,
+        image_url: imageUrl.trim() || undefined,
       });
       setSuccess(true);
       setName("");
@@ -63,6 +65,7 @@ export default function HotelForm() {
       setCity("");
       setCountry("");
       setTimezone("America/Bogota");
+      setImageUrl("");
     } catch (err) {
       console.error(err);
       setError("No se pudo crear el hotel. Verificá los datos e intentá de nuevo.");
@@ -205,6 +208,21 @@ export default function HotelForm() {
             <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">
               Usada para calcular los turnos, check-in y check-out en hora local.
             </p>
+          </div>
+
+          <div className="sm:col-span-2">
+            <label htmlFor="hotel-image" className={labelClass}>
+              Foto (URL)
+            </label>
+            <input
+              id="hotel-image"
+              name="hotel-image"
+              type="url"
+              placeholder="https://images.unsplash.com/…"
+              value={imageUrl}
+              onChange={(e) => setImageUrl(e.target.value)}
+              className={inputClass}
+            />
           </div>
         </div>
 
