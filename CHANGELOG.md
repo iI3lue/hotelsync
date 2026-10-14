@@ -46,6 +46,14 @@ Todos los cambios notables en HotelSync. Formato basado en [Keep a Changelog](ht
 ## [Unreleased]
 
 ### Added
+- Recuperación de contraseña (modo dev): `POST /v1/auth/password/forgot`
+  (siempre 200, sin enumerar emails; rate-limit 5 intentos/10 min; token de un
+  solo uso que expira en 1h, solo su hash en `password_reset_tokens`) y
+  `POST /v1/auth/password/reset` (rota el hash scrypt y revoca todas las
+  sesiones); cuentas federadas (Google) responden OK sin emitir link; en dev el
+  enlace queda en el log de user-service (sin SMTP). Front: páginas
+  `/cuenta/recuperar` y `/cuenta/restablecer?token=`, route handlers
+  `/api/auth/password/*` y link en el login
 - Loyalty Service (3009, `loyalty_db` 5440): cuentas con tier
   (silver/gold/platinum) y saldo único transversal; acreditación idempotente de
   puntos por `booking.completed` (`points = floor(total_amount × multiplicador

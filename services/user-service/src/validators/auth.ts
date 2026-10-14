@@ -42,6 +42,15 @@ export const refreshSchema = z.object({
 
 export const logoutSchema = refreshSchema;
 
+export const forgotPasswordSchema = z.object({
+  email: emailSchema,
+});
+
+export const resetPasswordSchema = z.object({
+  token: z.string().min(32).max(256),
+  new_password: passwordSchema,
+});
+
 export const federatedSchema = z.object({
   provider: z.literal("auth0"),
   id_token: z.string().min(1).max(8192),
@@ -101,6 +110,8 @@ export const setHotelStaffActiveSchema = z.object({
 
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
+export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
+export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;
 export type FederatedInput = z.infer<typeof federatedSchema>;
 export type UpdateMeInput = z.infer<typeof updateMeSchema>;

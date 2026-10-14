@@ -1,5 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { authService } from "../services/auth.service.js";
+import { passwordService } from "../services/password.service.js";
 import { AuthRequest } from "../middleware/auth.js";
 
 export class AuthController {
@@ -42,6 +43,24 @@ export class AuthController {
   async logout(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await authService.logout(req.body.refresh_token as string);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async forgotPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await passwordService.requestReset(req.body);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async resetPassword(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await passwordService.resetPassword(req.body);
       res.json(result);
     } catch (err) {
       next(err);

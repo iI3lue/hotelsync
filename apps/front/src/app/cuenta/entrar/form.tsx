@@ -243,6 +243,14 @@ export default function EnterForm({
                     {showPassword ? "Ocultar" : "Mostrar"}
                   </button>
                 </div>
+                <div className="mt-2 text-right">
+                  <a
+                    href="/cuenta/recuperar"
+                    className="text-xs font-semibold text-brand-gold hover:underline"
+                  >
+                    ¿Olvidaste tu contraseña?
+                  </a>
+                </div>
               </div>
 
               {/* Submit */}

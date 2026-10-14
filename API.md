@@ -889,6 +889,26 @@ POST /v1/auth/logout
 **Response refresh (200):** par nuevo; el refresh usado queda revocado.
 **Response logout (200):** `{ "logged_out": true }` (idempotente).
 
+### Recuperación de contraseña (modo dev)
+
+```
+POST /v1/auth/password/forgot
+POST /v1/auth/password/reset
+```
+
+**Request forgot:** `{ "email": "huesped@example.com" }`. Siempre 200
+`{ "ok": true }`, exista o no la cuenta (no enumera emails). Rate-limit:
+5 intentos/10 min por email (429). Si la cuenta está activa y tiene
+contraseña, emite un token de un solo uso (expira en 1h, solo su hash en
+`password_reset_tokens`, invalida links previos) y envía el enlace
+`${BASE}/cuenta/restablecer?token=...` — en modo dev el enlace queda en el
+log de user-service (sin SMTP). Cuentas federadas (Google) no reciben link.
+
+**Request reset:** `{ "token": "<64 hex>", "new_password": "Secret123!" }`
+(mín. 8 caracteres). Rota el hash (scrypt), marca el token como usado y
+revoca todas las refresh sessions. **Response (200):** `{ "ok": true }`
+(sin auto-login). **Error (400):** enlace inválido o vencido.
+
 ### Perfil propio
 
 ```

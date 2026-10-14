@@ -119,6 +119,39 @@ export async function updateMe(input: {
   return toProfile((await res.json()) as SessionPayload);
 }
 
+/** Pide el enlace de recuperación (siempre OK, exista o no la cuenta). */
+export async function forgotPassword(email: string): Promise<void> {
+  const res = await fetch("/api/auth/password/forgot", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      (err as { message?: string }).message || `Error ${res.status}`
+    );
+  }
+}
+
+/** Canjea el token del enlace por una contraseña nueva. */
+export async function resetPassword(
+  token: string,
+  newPassword: string
+): Promise<void> {
+  const res = await fetch("/api/auth/password/reset", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      (err as { message?: string }).message || `Error ${res.status}`
+    );
+  }
+}
+
 /**
  * Compatibilidad: el Bearer lo inyecta el middleware desde la cookie
  * HttpOnly, así que el cliente ya no adjunta cabeceras de auth.
