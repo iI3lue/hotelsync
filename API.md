@@ -524,6 +524,18 @@ email. Une la cuenta `GUEST` opcional con reservas anónimas previas.
 
 ---
 
+### Reservas activas por cuenta (server-to-server)
+
+```
+GET /v1/bookings/by-user/:userId/has-active   (x-user-key)
+```
+
+Usado por user-service para la baja de cuentas (variante A). Activa =
+`booked_by_user_id` de la cuenta con `status` en `pending`/`confirmed` y
+`check_out` hoy o futuro. **Response (200):**
+`{ "has_active": true, "count": 2 }`. **Error (401):** sin service key;
+**Error (400):** `userId` no UUID. Nunca al browser.
+
 ### Listar Reservas
 
 ```
@@ -915,6 +927,25 @@ revoca todas las refresh sessions. **Response (200):** `{ "ok": true }`
 GET /v1/users/me        (Bearer)
 PATCH /v1/users/me      (Bearer, solo name/phone)
 ```
+
+### Baja de cuenta propia (variante A)
+
+```
+DELETE /v1/users/me     (Bearer)
+Content-Type: application/json
+```
+
+**Request body:** `{ "password": "..." }` para cuentas con contraseña (se
+verifica) o `{ "confirm": true }` para cuentas federadas (Google). Si hay
+reservas activas (`pending`/`confirmed` con `check-out` hoy o futuro,
+consultado a booking con `x-user-key`) devuelve **409**; si booking no
+responde, **503** (fail-closed: sin verificar no se borra).
+
+Baja lógica + anonimización, nunca borrado físico: `status=DISABLED`, email a
+`deleted_<user_id>@deleted.local` (libera el unique para re-registro), hash a
+`deleted$<random>` (inutilizable), nombre/teléfono/foto anonimizados, sesiones
+y reset tokens revocados. El `user_id` se conserva para la trazabilidad de
+reservas, folios y puntos. **Response (200):** `{ "ok": true }`.
 
 ### Administración de personal (SUPER_ADMIN)
 

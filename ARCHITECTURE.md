@@ -322,6 +322,8 @@ const validate = (schema: z.ZodSchema) => (req, res, next) => {
 | Una acreditación por `booking_id` | Loyalty | `booking_id` UNIQUE en `points_transactions` + chequeo de idempotencia |
 | Tier solo asciende | Loyalty | `determineTier` nunca baja el tier actual |
 | Canje valida saldo | Loyalty | `AppError 400` si `points_balance < points`; `points_balance >= 0` |
+| Baja bloqueada con reservas activas | User → Booking | `DELETE /v1/users/me` consulta has-active con `x-user-key` (409 si hay; 503 fail-closed si Booking cae) |
+| Sin borrado físico de cuentas | User | Baja lógica + anonimización (`DISABLED`, email `deleted_*`, hash `deleted$`); el `user_id` se conserva |
 | Sin cross-service FK | Todos | Cada servicio es independiente |
 | Referencias cross-servicio = UUID | Todos | Sin joins entre bases |
 
@@ -398,6 +400,9 @@ Push → Lint → Test → Build → (Deploy)
   - Loyalty consulta Booking (`GET /v1/bookings/:id`) y User (`GET /users/:id`)
     con `x-service-key` para validar la reserva y que la cuenta esté activa
     antes de acreditar puntos.
+  - User consulta Booking (`GET /v1/bookings/by-user/:id/has-active`) con
+    `x-user-key` antes de una baja de cuenta (variante A): 409 si hay
+    reservas activas, 503 fail-closed si Booking no responde.
   - Sin FK entre bases: la referencia es el UUID.
 - **Asíncrona (eventos, outbox + RabbitMQ):** publicados vía outbox
   (`pending → sent`) sobre el exchange `hotelsync.events`: `booking.created` /

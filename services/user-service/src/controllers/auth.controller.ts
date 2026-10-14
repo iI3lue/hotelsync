@@ -86,6 +86,16 @@ export class AuthController {
       next(err);
     }
   }
+
+  async deleteMe(req: Request, res: Response, next: NextFunction) {
+    try {
+      const auth = (req as AuthRequest).auth;
+      const result = await authService.deleteMe(auth?.sub as string, req.body);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
 }
 
 export const authController = new AuthController();

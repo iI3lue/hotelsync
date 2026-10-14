@@ -51,6 +51,13 @@ export const resetPasswordSchema = z.object({
   new_password: passwordSchema,
 });
 
+export const deleteMeSchema = z.object({
+  // Cuentas con contraseña: se exige y verifica.
+  password: z.string().min(1).max(128).optional(),
+  // Cuentas federadas (sin contraseña): confirmación explícita.
+  confirm: z.literal(true).optional(),
+});
+
 export const federatedSchema = z.object({
   provider: z.literal("auth0"),
   id_token: z.string().min(1).max(8192),
@@ -112,6 +119,7 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type DeleteMeInput = z.infer<typeof deleteMeSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;
 export type FederatedInput = z.infer<typeof federatedSchema>;
 export type UpdateMeInput = z.infer<typeof updateMeSchema>;

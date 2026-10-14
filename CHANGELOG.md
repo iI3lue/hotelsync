@@ -46,6 +46,14 @@ Todos los cambios notables en HotelSync. Formato basado en [Keep a Changelog](ht
 ## [Unreleased]
 
 ### Added
+- Baja de cuenta propia (variante A): `DELETE /v1/users/me` con verificación
+  (contraseña actual o confirmación explícita en cuentas Google); bloquea con
+  409 si hay reservas activas (`GET /v1/bookings/by-user/:id/has-active` con
+  `x-user-key` en booking, `USER_SERVICE_KEY` pareada en compose) y falla
+  cerrado con 503 si booking cae; baja lógica + anonimización (email liberado
+  para re-registro, hash `deleted$`, sesiones y reset tokens revocados; sin
+  migración). Front: Zona de peligro en el perfil + DELETE en `/api/auth/me`
+  con limpieza de sesión en el servidor
 - Recuperación de contraseña (modo dev): `POST /v1/auth/password/forgot`
   (siempre 200, sin enumerar emails; rate-limit 5 intentos/10 min; token de un
   solo uso que expira en 1h, solo su hash en `password_reset_tokens`) y

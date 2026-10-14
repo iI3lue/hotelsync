@@ -168,6 +168,7 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 | POST | `/v1/bookings/:id/confirm` | Confirmar con staff o manage token (bloqueo optimista anti-sobreventa) |
 | GET | `/v1/bookings/me` | Reservas propias de la cuenta (Bearer) |
 | POST | `/v1/bookings/:id/cancel` | Cancelar con manage token o staff (emite `booking.cancelled`) |
+| GET | `/v1/bookings/by-user/:userId/has-active` | Reservas activas de una cuenta (`x-user-key`, solo server-to-server) |
 
 ### Front Desk Service (puerto 3005)
 
@@ -221,6 +222,7 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 | POST | `/v1/auth/logout` | Revoca el refresh (idempotente) |
 | GET | `/v1/users/me` | Perfil propio + rol vigente |
 | PATCH | `/v1/users/me` | Editar nombre/teléfono propios |
+| DELETE | `/v1/users/me` | Baja de cuenta propia (verificada; 409 si hay reservas activas) |
 | POST | `/v1/admin/users` | Alta de personal (SUPER_ADMIN; devuelve `initial_password` si no se indicó) |
 | GET | `/v1/admin/users` | Listar personal (SUPER_ADMIN todo; MANAGER solo su hotel) |
 | PATCH | `/v1/admin/users/:id` | Editar personal o desactivar (SUPER_ADMIN) |
