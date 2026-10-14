@@ -341,6 +341,11 @@ export class AuthService {
     if (!user) {
       throw new AppError(404, `User with id ${userId} not found`, "Not Found");
     }
+    // Cuentas dadas de baja: el JWT viejo sigue firmando hasta que expira,
+    // pero la cuenta ya no existe a efectos practicos.
+    if (user.status !== "ACTIVE") {
+      throw new AppError(404, `User with id ${userId} not found`, "Not Found");
+    }
     const assignment = await activeAssignment(user.user_id);
     return { user: publicProfile(user), assignment };
   }
@@ -356,6 +361,14 @@ export class AuthService {
       where: { user_id: userId },
     });
     if (!user) {
+      throw new AppError(404, `User with id ${userId} not found`, "Not Found");
+    }
+    // Ya dada de baja: a efectos practicos no existe (reintento -> 404,
+    // no 400). Igual que getMe/updateMe.
+    if (
+      user.status !== "ACTIVE" ||
+      user.password_hash.startsWith("deleted$")
+    ) {
       throw new AppError(404, `User with id ${userId} not found`, "Not Found");
     }
 
@@ -407,6 +420,13 @@ export class AuthService {
   }
 
   async updateMe(userId: string, data: UpdateMeInput) {
+    const current = await prisma.user.findUnique({
+      where: { user_id: userId },
+    });
+    // Igual que getMe: las cuentas dadas de baja ya no existen.
+    if (!current || current.status !== "ACTIVE") {
+      throw new AppError(404, `User with id ${userId} not found`, "Not Found");
+    }
     const user = await prisma.user.update({
       where: { user_id: userId },
       data: {

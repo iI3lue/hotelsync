@@ -89,6 +89,18 @@ describe("AuthService.deleteMe", () => {
     });
   });
 
+  it("returns 404 when the account is already deleted (retry)", async () => {
+    mockPrisma.user.findUnique.mockResolvedValue(
+      user({ status: "DISABLED", password_hash: "deleted$abc123" })
+    );
+
+    await expect(
+      authService.deleteMe(USER_ID, { password: "Secret123!" })
+    ).rejects.toMatchObject({ statusCode: 404 });
+    expect(mockHasActive).not.toHaveBeenCalled();
+    expect(txMocks.userUpdate).not.toHaveBeenCalled();
+  });
+
   it("rejects with 401 on wrong password without touching the DB", async () => {
     const passwordHash = await hashPassword("Secret123!");
     mockPrisma.user.findUnique.mockResolvedValue(
