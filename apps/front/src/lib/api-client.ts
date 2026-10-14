@@ -87,7 +87,7 @@ async function fetchWithSession(
   }
 }
 
-async function clientFetch<T>(url: string, opts: RequestOptions = {}): Promise<T> {
+export async function clientFetch<T>(url: string, opts: RequestOptions = {}): Promise<T> {
   const res = await fetchWithSession(
     url,
     {

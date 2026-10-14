@@ -102,27 +102,28 @@ RABBITMQ_URL=amqp://rabbitmq:5672
 
 ## 4. API REST
 
-Prefijo: `/v1/loyalty`
+Rutas montadas directo bajo `/v1` (convención del resto de servicios, para que
+el rewrite `/api/loyalty/:path*` del front resuelva 1:1).
 
 ### Endpoints autenticados (JWT del huésped)
 
 | Método | Path | Descripción |
 |--------|------|-------------|
-| GET | `/me/loyalty` | Cuenta de loyalty del usuario logueado: tier, balance, últimas 10 transacciones |
-| POST | `/redeem` | Canjear puntos. Body: `{points: number, reason: string}` |
+| GET | `/v1/me` | Cuenta de loyalty del usuario logueado: tier, balance, últimas 10 transacciones (crea la cuenta en silver/0 si no existe) |
+| POST | `/v1/me/redeem` | Canjear puntos. Body: `{points: number, reason: string}` |
 
-### Endpoints de staff/admin (JWT con role ADMIN o MANAGER)
+### Endpoints de staff/admin (JWT con rol SUPER_ADMIN, MANAGER o ADMIN)
 
 | Método | Path | Descripción |
 |--------|------|-------------|
-| GET | `/users/:userId/loyalty` | Consultar cuenta de cualquier huésped |
-| POST | `/points` | Ajuste manual de puntos (admin). Body: `{user_id, points, reason, booking_id?}` |
+| GET | `/v1/admin/users/:userId/loyalty` | Consultar cuenta de cualquier huésped (últimas 20 transacciones) |
+| POST | `/v1/admin/points` | Ajuste manual de puntos (admin). Body: `{user_id, points, reason, booking_id?}` |
 
 ### Endpoint público
 
 | Método | Path | Descripción |
 |--------|------|-------------|
-| GET | `/levels` | Tabla de tiers: nombre, multiplicador, umbral mínimo |
+| GET | `/v1/levels` | Tabla de tiers: nombre, multiplicador, umbral mínimo |
 
 ### Health
 

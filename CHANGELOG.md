@@ -51,9 +51,10 @@ Todos los cambios notables en HotelSync. Formato basado en [Keep a Changelog](ht
   puntos por `booking.completed` (`points = floor(total_amount × multiplicador
   del tier vigente)`), ascenso automático de tier sin descenso, y canje con
   validación de saldo; consumer RabbitMQ (`loyalty.points`) que verifica reserva
-  (Booking) y cuenta activa (User) vía REST antes de acreditar; endpoints
-  `GET /v1/loyalty/me`, `POST /v1/loyalty/me/redeem`, `GET /v1/loyalty/levels` y
-  admin `GET /v1/loyalty/admin/users/:id/loyalty` / `POST /v1/loyalty/admin/points`
+  (Booking) y   cuenta activa (User) vía REST antes de acreditar; endpoints
+  `GET /v1/me`, `POST /v1/me/redeem`, `GET /v1/levels` y
+  admin `GET /v1/admin/users/:id/loyalty` / `POST /v1/admin/points`
+  (montaje directo bajo `/v1`, como el resto de servicios)
 - Front: `LoyaltyCard` en `/cuenta/perfil` (tier, saldo, progreso al siguiente
   nivel y últimas transacciones) vía rewrite `/api/loyalty`
 - Infra: `loyalty-db` + `loyalty-service` en `docker-compose.yml`, scripts

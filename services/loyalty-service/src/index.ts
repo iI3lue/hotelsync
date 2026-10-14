@@ -12,10 +12,11 @@ app.get("/health", (req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });
 });
 
-// Registrar rutas
-app.use("/v1/loyalty/levels", levelsRouter);
-app.use("/v1/loyalty/me", loyaltyRouter); // Se mapea a /v1/loyalty/me y /v1/loyalty/me/redeem
-app.use("/v1/loyalty/admin", adminRouter);
+// Registrar rutas (montaje directo bajo /v1, como el resto de servicios,
+// para que el rewrite /api/loyalty/:path* del front resuelva 1:1)
+app.use("/v1/levels", levelsRouter); // GET /v1/levels
+app.use("/v1/me", loyaltyRouter); // GET /v1/me y POST /v1/me/redeem
+app.use("/v1/admin", adminRouter); // /v1/admin/users/:userId/loyalty y /v1/admin/points
 
 // Manejador centralizado de errores
 app.use(errorHandler);
