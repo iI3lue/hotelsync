@@ -37,7 +37,8 @@
 - [x] Env vars con valores dev: `DATABASE_URL` (Neon pooler), `AUTH_JWT_SECRET` (= user-service), `BOOKING_SERVICE_URL` (onrender), `BOOKING_SERVICE_KEY`, `PAYMENT_CURRENCY=COP`.
 - [x] Agregar `RABBITMQ_URL` de producción (mismo que loyalty).
 - [x] **Booking de prod actualizado** (2026-10-14): split sincronizado (payment + `has-active` que le faltaba desde el 11-oct + helper JWT local para tests standalone), pusheado, `PAYMENT_SERVICE_KEY` seteada, deploy `live` verificado. Cadena prod `payment→booking` verificada (checkout→404, antes 502).
-- [ ] En el front de prod (Vercel): `NEXT_PUBLIC_PAYMENT_API_URL=https://hotelsync-payment-service.onrender.com/v1` + redeploy (build-time).
+- [x] En el front de prod (Vercel): `NEXT_PUBLIC_PAYMENT_API_URL=https://hotelsync-payment-service.onrender.com/v1` + redeploy (build-time).
+- [x] Sync front→prod con la pasarela (2026-10-14, commit `db16da4` en `hotelsync-front`): 5 nuevos + 13 mod + rewrite payments; `api-client` del monorepo + bloque compat preservado (verificado completo); tsc + 47/47 + `next build` OK. Vercel redespliega solo.
 - [ ] Próximo sync front→prod: preservar el bloque compat de `api-client.ts` en front-sync (solo existe ahí) al traer estos 13 archivos modificados.
 
 ## 6. Próximo PRD (decisión abierta)
