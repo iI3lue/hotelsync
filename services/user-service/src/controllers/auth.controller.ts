@@ -60,7 +60,16 @@ export class AuthController {
 
   async resetPassword(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await passwordService.resetPassword(req.body);
+      const result = await passwordService.resetPassword(req.body, req.ip);
+      res.json(result);
+    } catch (err) {
+      next(err);
+    }
+  }
+
+  async requestCode(req: Request, res: Response, next: NextFunction) {
+    try {
+      const result = await passwordService.requestCode(req.body);
       res.json(result);
     } catch (err) {
       next(err);

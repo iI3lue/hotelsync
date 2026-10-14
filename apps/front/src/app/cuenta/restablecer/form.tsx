@@ -8,10 +8,11 @@ import Spinner from "@/components/Spinner";
 export default function ResetForm({
   params,
 }: {
-  params: Promise<{ token?: string }>;
+  params: Promise<{ token?: string; code?: string }>;
 }) {
   const router = useRouter();
   const [token, setToken] = useState<string | null>(null);
+  const [manualCode, setManualCode] = useState("");
   const [ready, setReady] = useState(false);
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
@@ -21,7 +22,8 @@ export default function ResetForm({
 
   useEffect(() => {
     void params.then((p) => {
-      setToken(p.token ?? null);
+      // Sirve el token del enlace y el código demo indistintamente.
+      setToken(p.token ?? p.code ?? null);
       setReady(true);
     });
   }, [params]);
@@ -61,22 +63,60 @@ export default function ResetForm({
     );
   }
 
+  function handleCodeSubmit(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setError(null);
+    const value = manualCode.trim();
+    if (!/^\d{6}$/.test(value) && value.length < 6) {
+      setError("Ingresá el código de 6 dígitos que recibiste.");
+      return;
+    }
+    setToken(value);
+  }
+
   if (!token) {
     return (
-      <div
-        role="alert"
-        className="rounded-2xl border border-red-200 bg-red-50 p-6 text-sm text-red-700 dark:border-red-800/40 dark:bg-red-950/20 dark:text-red-300"
-      >
-        <p className="font-semibold">Enlace inválido.</p>
-        <p className="mt-1">
-          Este enlace no trae token. Pedí uno nuevo para continuar.
-        </p>
-        <a
-          href="/cuenta/recuperar"
-          className="mt-4 inline-block font-semibold text-brand-gold hover:underline"
-        >
-          Pedir un enlace nuevo
-        </a>
+      <div className="rounded-2xl border border-brand-navy/10 bg-white p-6 shadow-card dark:border-white/10 dark:bg-brand-navy-800">
+        {error && (
+          <p
+            role="alert"
+            className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700 dark:border-red-800/40 dark:bg-red-950/20 dark:text-red-300"
+          >
+            {error}
+          </p>
+        )}
+        <form onSubmit={handleCodeSubmit} className="space-y-5">
+          <div>
+            <label htmlFor="reset-code" className="input-label">
+              Código de recuperación
+            </label>
+            <input
+              id="reset-code"
+              type="text"
+              inputMode="numeric"
+              value={manualCode}
+              onChange={(e) => setManualCode(e.target.value)}
+              placeholder="6 dígitos"
+              maxLength={256}
+              autoComplete="one-time-code"
+              className="input-field font-mono tracking-[0.3em] text-center text-xl"
+              required
+            />
+            <p className="mt-1 text-xs text-gray-400">
+              Vale 10 minutos. Si no lo tenés,{" "}
+              <a
+                href="/cuenta/recuperar"
+                className="font-semibold text-brand-gold hover:underline"
+              >
+                pedí uno nuevo
+              </a>
+              .
+            </p>
+          </div>
+          <button type="submit" className="btn-primary w-full justify-center">
+            Continuar
+          </button>
+        </form>
       </div>
     );
   }

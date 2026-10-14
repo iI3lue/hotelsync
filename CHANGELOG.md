@@ -46,6 +46,12 @@ Todos los cambios notables en HotelSync. Formato basado en [Keep a Changelog](ht
 ## [Unreleased]
 
 ### Added
+- Recuperación demo por código en pantalla (opción C): `POST
+  /v1/auth/password/code` devuelve el código de 6 dígitos solo con mailer
+  `log` (con `smtp` no se expone), con 10 min de vida; `POST
+  /v1/auth/password/reset` acepta link o código, con límite de 5 intentos por
+  IP cada 10 min. Front: `/cuenta/recuperar` muestra el código y
+  `/cuenta/restablecer` acepta código tipeado o `?code=`/`?token=`
 - Baja de cuenta propia (variante A): `DELETE /v1/users/me` con verificación
   (contraseña actual o confirmación explícita en cuentas Google); bloquea con
   409 si hay reservas activas (`GET /v1/bookings/by-user/:id/has-active` con

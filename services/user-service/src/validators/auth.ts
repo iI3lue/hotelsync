@@ -47,8 +47,13 @@ export const forgotPasswordSchema = z.object({
 });
 
 export const resetPasswordSchema = z.object({
-  token: z.string().min(32).max(256),
+  // Link (64 hex) o código demo (6 dígitos).
+  token: z.string().min(6).max(256),
   new_password: passwordSchema,
+});
+
+export const requestCodeSchema = z.object({
+  email: emailSchema,
 });
 
 export const deleteMeSchema = z.object({
@@ -119,6 +124,7 @@ export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
+export type RequestCodeInput = z.infer<typeof requestCodeSchema>;
 export type DeleteMeInput = z.infer<typeof deleteMeSchema>;
 export type RefreshInput = z.infer<typeof refreshSchema>;
 export type FederatedInput = z.infer<typeof federatedSchema>;

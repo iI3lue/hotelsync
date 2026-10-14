@@ -921,6 +921,20 @@ log de user-service (sin SMTP). Cuentas federadas (Google) no reciben link.
 revoca todas las refresh sessions. **Response (200):** `{ "ok": true }`
 (sin auto-login). **Error (400):** enlace inválido o vencido.
 
+### Código demo en pantalla (opción C)
+
+```
+POST /v1/auth/password/code
+```
+
+Mismas reglas de privacidad que forgot (siempre 200, rate-limit 5/10 min,
+federadas sin código). Emite un código de 6 dígitos con 10 min de vida
+(hasheado en `password_reset_tokens`, invalida anteriores). **Response
+(200):** `{ "ok": true, "demo_code": "482913" }` solo con mailer `log`
+(dev); con `smtp` no incluye el código. El canje usa el mismo `POST
+/v1/auth/password/reset` con el código en `token`, limitado a 5 intentos
+por IP cada 10 min (**429** si se excede).
+
 ### Perfil propio
 
 ```

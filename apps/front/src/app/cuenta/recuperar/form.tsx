@@ -1,13 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { forgotPassword } from "@/lib/auth-client";
+import { requestCode } from "@/lib/auth-client";
 import Spinner from "@/components/Spinner";
 
 export default function RecoverForm() {
   const [email, setEmail] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [code, setCode] = useState<string | null>(null);
   const [sent, setSent] = useState(false);
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -15,11 +16,12 @@ export default function RecoverForm() {
     setSending(true);
     setError(null);
     try {
-      await forgotPassword(email.trim());
+      const result = await requestCode(email.trim());
+      setCode(result.code ?? null);
       setSent(true);
     } catch (err) {
       setError(
-        err instanceof Error ? err.message : "No se pudo enviar el enlace"
+        err instanceof Error ? err.message : "No se pudo enviar el código"
       );
     } finally {
       setSending(false);
@@ -32,20 +34,41 @@ export default function RecoverForm() {
         role="status"
         className="rounded-2xl border border-green-200 bg-green-50 p-6 text-sm text-green-800 dark:border-green-800/40 dark:bg-green-950/20 dark:text-green-300"
       >
-        <p className="font-semibold">Revisá tu correo.</p>
-        <p className="mt-1">
-          Si la cuenta existe, vas a recibir un enlace válido por 1 hora para
-          crear una contraseña nueva.
-        </p>
-        <p className="mt-3 text-xs opacity-80">
-          En modo desarrollo el enlace aparece en el log de user-service.
-        </p>
-        <a
-          href="/cuenta/entrar"
-          className="mt-4 inline-block font-semibold text-brand-gold hover:underline"
-        >
-          Volver a entrar
-        </a>
+        {code ? (
+          <>
+            <p className="font-semibold">Tu código de recuperación:</p>
+            <p
+              aria-label={`Código ${code}`}
+              className="my-3 text-center font-mono text-4xl font-bold tracking-[0.3em]"
+            >
+              {code}
+            </p>
+            <p>
+              Vale por 10 minutos. Ingresalo en la pantalla de restablecer
+              junto a tu contraseña nueva.
+            </p>
+            <a
+              href={`/cuenta/restablecer?code=${code}`}
+              className="btn-primary mt-4 flex w-full justify-center"
+            >
+              Continuar
+            </a>
+          </>
+        ) : (
+          <>
+            <p className="font-semibold">Revisá tu correo.</p>
+            <p className="mt-1">
+              Si la cuenta existe, vas a recibir un código válido por 10
+              minutos para crear una contraseña nueva.
+            </p>
+            <a
+              href="/cuenta/entrar"
+              className="mt-4 inline-block font-semibold text-brand-gold hover:underline"
+            >
+              Volver a entrar
+            </a>
+          </>
+        )}
       </div>
     );
   }
@@ -82,7 +105,7 @@ export default function RecoverForm() {
           disabled={sending}
           className="btn-primary w-full justify-center"
         >
-          {sending ? <Spinner label="Enviando…" /> : "Enviar enlace"}
+          {sending ? <Spinner label="Enviando…" /> : "Enviar código"}
         </button>
       </form>
     </div>

@@ -9,7 +9,7 @@ export const metadata: Metadata = {
 export default function ResetPage({
   searchParams,
 }: {
-  searchParams: Promise<{ token?: string }>;
+  searchParams: Promise<{ token?: string; code?: string }>;
 }) {
   return (
     <div className="mx-auto w-full max-w-md px-4 py-12">

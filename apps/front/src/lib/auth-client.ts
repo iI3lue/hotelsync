@@ -134,6 +134,26 @@ export async function forgotPassword(email: string): Promise<void> {
   }
 }
 
+/**
+ * Pide el código demo de 6 dígitos (opción C). En modo dev vuelve en la
+ * respuesta para mostrarlo en pantalla; con SMTP real no se incluye.
+ */
+export async function requestCode(email: string): Promise<{ code?: string }> {
+  const res = await fetch("/api/auth/password/code", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      (err as { message?: string }).message || `Error ${res.status}`
+    );
+  }
+  const data = (await res.json()) as { demo_code?: string };
+  return data.demo_code ? { code: data.demo_code } : {};
+}
+
 /** Canjea el token del enlace por una contraseña nueva. */
 export async function resetPassword(
   token: string,
