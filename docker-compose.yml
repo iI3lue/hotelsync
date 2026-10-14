@@ -107,6 +107,19 @@ services:
       timeout: 5s
       retries: 5
 
+  loyalty-db:
+    image: postgres:16-alpine
+    ports:
+      - "5440:5432"
+    environment:
+      POSTGRES_USER: hotelsync
+      POSTGRES_PASSWORD: loyalty_dev
+      POSTGRES_DB: loyalty_db
+    volumes:
+      - loyalty_data:/var/lib/postgresql/data
+
+
+
   adminer:
     image: adminer:4
     ports:
@@ -198,6 +211,7 @@ services:
       CHANNEL_MANAGER_SERVICE_KEY: hotelsync-dev-channel-manager-key-change-me
       # Clave estable separada para derivar el manage_token idempotente de OTAs.
       CHANNEL_MANAGER_MANAGE_TOKEN_SECRET: hotelsync-dev-channel-manage-token-secret-change-me
+      LOYALTY_SERVICE_KEY: hotelsync-dev-loyalty-key-change-me
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
       booking-db:
@@ -349,6 +363,7 @@ services:
       # Login social (valores reales solo por entorno, nunca en el repo).
       AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
       AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
+      LOYALTY_SERVICE_KEY: hotelsync-dev-loyalty-key-change-me
     depends_on:
       user-db:
         condition: service_healthy
@@ -381,6 +396,34 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  loyalty-service:
+    build:
+      context: .
+      dockerfile: services/loyalty-service/Dockerfile
+    ports:
+      - "3009:3009"
+    environment:
+      NODE_ENV: production
+      PORT: "3009"
+      DATABASE_URL: postgresql://hotelsync:loyalty_dev@loyalty-db:5432/loyalty_db
+      AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
+      BOOKING_SERVICE_URL: http://booking-service:3004/v1
+      USER_SERVICE_URL: http://user-service:3003/v1
+      # Keys para autorizarse contra otros microservicios (definidas en el plan)
+      BOOKING_SERVICE_KEY: hotelsync-dev-loyalty-key-change-me
+      USER_SERVICE_KEY: hotelsync-dev-loyalty-user-key-change-me
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    depends_on:
+      loyalty-db:
+        condition: service_healthy
+      booking-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   property_data:
   rate_availability_data:
@@ -392,3 +435,4 @@ volumes:
   channel_manager_data:
   rabbitmq_data:
   redis_data:
+  loyalty_data:

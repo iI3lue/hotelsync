@@ -54,8 +54,10 @@ HOTELSYNC/
 │       └── (misma estructura)
 │   ├── booking-service/               ← Express + Prisma (3004)
 │   │   └── (misma estructura + lib/events.ts)
-│   └── front-desk-service/            ← Express + Prisma (3005)
-│       └── (misma estructura + lib/booking-client.ts)
+│   ├── front-desk-service/            ← Express + Prisma (3005)
+│   │   └── (misma estructura + lib/booking-client.ts)
+│   └── loyalty-service/              ← Express + Prisma (3009)
+│       └── (misma estructura + lib/{broker,consumer,booking-client,user-client}.ts)
 ├── apps/
 │   ├── web/                           ← Next.js SSR (App Router)
 │   │   ├── src/app/
@@ -73,7 +75,7 @@ HOTELSYNC/
 │       │   ├── inventory/page.tsx     ← Gestión de inventario
 │       │   └── recepcion/page.tsx     ← Llegadas + check-in/out
 │       └── package.json
-├── docker-compose.yml                 ← 4× PostgreSQL 16
+├── docker-compose.yml                 ← 9× PostgreSQL 16 (5432–5440)
 ├── tsconfig.base.json                 ← Config compartida
 ├── package.json                       ← npm workspaces
 └── .github/workflows/                 ← CI/CD
@@ -101,6 +103,14 @@ Cada microservicio tiene su propia instancia de PostgreSQL. No hay foreign keys 
 │ bookings            │     │ room_assignments        │
 │                     │     │ guest_incidents         │
 └─────────────────────┘     └─────────────────────────┘
+┌─────────────────────────┐
+│   loyalty_db            │
+│   (localhost:5440)      │
+├─────────────────────────┤
+│ loyalty_accounts        │
+│ points_transactions     │
+│ event_outbox            │
+└─────────────────────────┘
 ```
 
 ### Property Service Schema
@@ -203,6 +213,41 @@ CREATE TABLE guest_incidents (
 );
 ```
 
+### Loyalty Service Schema
+
+```sql
+CREATE TABLE loyalty_accounts (
+    account_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL UNIQUE,                 -- referencia externa a user-service
+    tier VARCHAR(20) NOT NULL DEFAULT 'silver',   -- silver | gold | platinum
+    points_balance INT NOT NULL DEFAULT 0 CHECK (points_balance >= 0),
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMPTZ NOT NULL
+);
+
+CREATE TABLE points_transactions (
+    transaction_id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id UUID NOT NULL,                        -- referencia externa a user-service
+    type VARCHAR(10) NOT NULL,                    -- earn | redeem
+    points INT NOT NULL CHECK (points > 0),
+    booking_id UUID UNIQUE,                       -- idempotencia: una acreditación por booking
+    reason VARCHAR(200) NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX points_transactions_user_id_created_at_idx ON points_transactions(user_id, created_at DESC);
+
+CREATE TABLE event_outbox (                        -- patrón estándar HotelSync
+    event_id UUID PRIMARY KEY,
+    event_type VARCHAR(50) NOT NULL,
+    payload JSONB NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    attempts INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    sent_at TIMESTAMPTZ
+);
+CREATE INDEX event_outbox_status_created_at_idx ON event_outbox(status, created_at);
+```
+
 ## Patrones de Diseño
 
 ### API Layer (3 capas)
@@ -273,6 +318,10 @@ const validate = (schema: z.ZodSchema) => (req, res, next) => {
 | Cancelar libera inventario (RN-2) | Booking → R&A | REST `POST /availability/release` (solo si estaba `confirmed`) |
 | Check-in solo con reserva `confirmed` | Front Desk | Lectura REST a Booking Service (409 si no) |
 | Sin doble check-in | Front Desk | `booking_id` UNIQUE en `room_assignments` + chequeo |
+| Puntos = floor(total_amount × multiplicador) | Loyalty | `processEarn` con el multiplicador del tier vigente (silver ×1.0, gold ×1.25, platinum ×1.50) |
+| Una acreditación por `booking_id` | Loyalty | `booking_id` UNIQUE en `points_transactions` + chequeo de idempotencia |
+| Tier solo asciende | Loyalty | `determineTier` nunca baja el tier actual |
+| Canje valida saldo | Loyalty | `AppError 400` si `points_balance < points`; `points_balance >= 0` |
 | Sin cross-service FK | Todos | Cada servicio es independiente |
 | Referencias cross-servicio = UUID | Todos | Sin joins entre bases |
 
@@ -346,27 +395,32 @@ Push → Lint → Test → Build → (Deploy)
     /v1/availability/reserve` y `/release`) vía `RATE_SERVICE_URL`. Reserva con
     transacción + `available_count >= count` (409 si no alcanza); cancelar
     compensa liberando. Si el servicio no responde → 502.
+  - Loyalty consulta Booking (`GET /v1/bookings/:id`) y User (`GET /users/:id`)
+    con `x-service-key` para validar la reserva y que la cuenta esté activa
+    antes de acreditar puntos.
   - Sin FK entre bases: la referencia es el UUID.
-- **Asíncrona (eventos, stub Fase 1):** `booking.created` / `booking.cancelled`
-  (Booking) y `checkout.completed` (Front Desk) se publican como log con
-  `booking_id` para trazabilidad. En Fase 2 se cablean a RabbitMQ: Front Desk y
-  Rate & Availability consumen `booking.created`, Channel Manager lo publica
-  (OTAs), Housekeeping y Billing consumen `checkout.completed`.
+- **Asíncrona (eventos, outbox + RabbitMQ):** publicados vía outbox
+  (`pending → sent`) sobre el exchange `hotelsync.events`: `booking.created` /
+  `booking.cancelled`, `booking.completed` (Front Desk) y `checkout.completed`
+  (Front Desk). Consumen: Housekeeping y Billing `checkout.completed`, y Loyalty
+  `booking.completed` (cola `loyalty.points`, prefetch 1, ack manual,
+  acreditación idempotente por `booking_id`). Sin `RABBITMQ_URL` los eventos
+  quedan `pending` sin interrumpir la operación.
 
 ## Plan de Evolución
 
 ### V1 (Actual)
 - Property Service (3001) + Rate & Availability Service (3002)
 - Booking Service (3004) + Front Desk Service (3005)
-- 4× PostgreSQL (5432–5435)
-- Frontend SSR (`/reservas/nueva` real) + Admin (`/recepcion`)
+- Loyalty Service (3009, consume `booking.completed`)
+- 9× PostgreSQL (5432–5440)
+- Frontend SSR (`/reservas/nueva` real) + Admin (`/recepcion`) + Loyalty en perfil
 
 ### V2 (Futuro)
 - Channel Manager Service (sincronización OTAs, publica `booking.created`)
 - Housekeeping Service (consume `checkout.completed`)
 - Billing Service (folios, consume `checkout.completed`)
-- Loyalty + Analytics
+- Analytics + Loyalty V2 (expiración de puntos, eventos desde user-service)
 - Redis (cache, sesiones)
-- RabbitMQ (eventos asíncronos reales)
 - API Gateway
 - Auth service (JWT, roles)

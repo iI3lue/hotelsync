@@ -46,6 +46,19 @@ Todos los cambios notables en HotelSync. Formato basado en [Keep a Changelog](ht
 ## [Unreleased]
 
 ### Added
+- Loyalty Service (3009, `loyalty_db` 5440): cuentas con tier
+  (silver/gold/platinum) y saldo único transversal; acreditación idempotente de
+  puntos por `booking.completed` (`points = floor(total_amount × multiplicador
+  del tier vigente)`), ascenso automático de tier sin descenso, y canje con
+  validación de saldo; consumer RabbitMQ (`loyalty.points`) que verifica reserva
+  (Booking) y cuenta activa (User) vía REST antes de acreditar; endpoints
+  `GET /v1/loyalty/me`, `POST /v1/loyalty/me/redeem`, `GET /v1/loyalty/levels` y
+  admin `GET /v1/loyalty/admin/users/:id/loyalty` / `POST /v1/loyalty/admin/points`
+- Front: `LoyaltyCard` en `/cuenta/perfil` (tier, saldo, progreso al siguiente
+  nivel y últimas transacciones) vía rewrite `/api/loyalty`
+- Infra: `loyalty-db` + `loyalty-service` en `docker-compose.yml`, scripts
+  `dev:loyalty`/`migrate:loyalty`/`seed:loyalty` y vars en `.env.example`
+- Docs: `docs/plan-loyalty-service.md` (plan aprobado del servicio)
 - RN-1/RN-2 del PRD: confirmar reserva decrementa inventario y cancelar lo
   libera, vía REST síncrono Booking → Rate & Availability
   (`POST /v1/availability/reserve` y `/release`) con transacción + `version`

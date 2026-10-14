@@ -17,6 +17,7 @@
     "dev:channel": "npm run dev --workspace=services/channel-manager-service",
     "dev:front": "npm run dev --workspace=apps/front",
     "dev:user": "npm run dev --workspace=services/user-service",
+    "dev:loyalty": "npm run dev --workspace=services/loyalty-service",
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
@@ -30,6 +31,7 @@
     "migrate:billing": "npm exec --workspace=services/billing-service -- prisma migrate dev",
     "migrate:channel": "npm exec --workspace=services/channel-manager-service -- prisma migrate dev",
     "migrate:user": "npm exec --workspace=services/user-service -- prisma migrate dev",
+    "migrate:loyalty": "npm exec --workspace=services/loyalty-service -- prisma migrate dev",
     "seed:property": "npm run seed --workspace=services/property-service",
     "seed:rate": "npm run seed --workspace=services/rate-availability-service",
     "seed:booking": "npm run seed --workspace=services/booking-service",
@@ -37,7 +39,8 @@
     "seed:housekeeping": "npm run seed --workspace=services/housekeeping-service",
     "seed:billing": "npm run seed --workspace=services/billing-service",
     "seed:channel": "npm run seed --workspace=services/channel-manager-service",
-    "seed:user": "npm run seed --workspace=services/user-service"
+    "seed:user": "npm run seed --workspace=services/user-service",
+    "seed:loyalty": "npm run seed --workspace=services/loyalty-service"
   },
   "engines": {
     "node": ">=20.0.0"
