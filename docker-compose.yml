@@ -430,9 +430,8 @@ services:
       AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
       BOOKING_SERVICE_URL: http://booking-service:3004/v1
       USER_SERVICE_URL: http://user-service:3003/v1
-      # Keys para autorizarse contra otros microservicios (definidas en el plan)
-      BOOKING_SERVICE_KEY: hotelsync-dev-loyalty-key-change-me
-      USER_SERVICE_KEY: hotelsync-dev-loyalty-user-key-change-me
+      # Clave propia para leer reservas y estado de cuentas (header x-loyalty-key).
+      LOYALTY_SERVICE_KEY: hotelsync-dev-loyalty-key-change-me
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
       loyalty-db:
