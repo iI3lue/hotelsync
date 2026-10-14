@@ -152,6 +152,24 @@ export async function resetPassword(
   }
 }
 
+/** Baja de cuenta propia (variante A: falla con 409 si hay reservas activas). */
+export async function deleteMe(input: {
+  password?: string;
+  confirm?: true;
+}): Promise<void> {
+  const res = await fetch("/api/auth/me", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(
+      (err as { message?: string }).message || `Error ${res.status}`
+    );
+  }
+}
+
 /**
  * Compatibilidad: el Bearer lo inyecta el middleware desde la cookie
  * HttpOnly, así que el cliente ya no adjunta cabeceras de auth.

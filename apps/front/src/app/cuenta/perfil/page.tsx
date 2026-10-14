@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import ProfileForm from "./form";
 import { LoyaltyCard } from "@/components/LoyaltyCard";
+import { DangerZone } from "@/components/DangerZone";
 
 export const metadata: Metadata = {
   title: "Mi perfil — HotelSync",
@@ -26,6 +27,9 @@ export default function ProfilePage() {
       <div className="mt-6">
         <ProfileForm />
       </div>
+
+      {/* Baja de cuenta */}
+      <DangerZone />
     </div>
   );
 }
