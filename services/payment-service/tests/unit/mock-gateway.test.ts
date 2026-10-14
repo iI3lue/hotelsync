@@ -1,4 +1,4 @@
-import { authorizeCard, expiryValid, luhnValid } from "../../src/lib/mock-gateway";
+import { authorizeCard, cardBrand, expiryValid, luhnValid } from "../../src/lib/mock-gateway";
 
 describe("mock-gateway (pasarela simulada)", () => {
   test("Luhn acepta la tarjeta de prueba que autoriza", () => {
@@ -29,5 +29,17 @@ describe("mock-gateway (pasarela simulada)", () => {
       850000
     );
     expect(res.authorized).toBe(false);
+  });
+
+  test("detecta la marca por prefijo", () => {
+    expect(cardBrand("4111111111111111")).toBe("VISA");
+    expect(cardBrand("5555555555554444")).toBe("MASTERCARD");
+    expect(cardBrand("378282246310005")).toBe("AMEX");
+  });
+
+  test("Amex exige CVV de 4 dígitos", () => {
+    const amex = { number: "378282246310005", exp_month: 12, exp_year: 2030 };
+    expect(authorizeCard({ ...amex, cvc: "123" }, 1000).authorized).toBe(false);
+    expect(authorizeCard({ ...amex, cvc: "1234" }, 1000).authorized).toBe(true);
   });
 });

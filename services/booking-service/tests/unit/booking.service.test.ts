@@ -139,6 +139,8 @@ describe("BookingService", () => {
           channel: "direct",
           channel_external_id: null,
           total_amount: 25500,
+          payment_method_preference: "ONLINE",
+          payment_status: "PENDING",
         },
       });
       expect(mockPrisma.eventOutbox.create).toHaveBeenCalledWith({

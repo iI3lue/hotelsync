@@ -1,24 +1,23 @@
-import express from "express";
-import { errorHandler } from "./middleware/error-handler";
-import { checkoutRouter } from "./routes/checkout";
-import { adminRouter } from "./routes/admin";
+import { createApp } from "./app";
+import { getJwtSecret } from "./lib/tokens";
+import { startOutboxDispatcher } from "./lib/outbox";
 
-const app = express();
-app.use(express.json());
+// Falla al arrancar (no en la primera request) si el secreto no está:
+// un AUTH_JWT_SECRET distinto al de user-service da 401 en todo.
+getJwtSecret();
+if (!process.env.BOOKING_SERVICE_KEY) {
+  console.warn("[payment-service] BOOKING_SERVICE_KEY vacío: no se podrán verificar reservas");
+}
 
-app.get("/health", (req, res) => {
-  res.json({ status: "ok", timestamp: new Date().toISOString() });
-});
-
-// Montaje directo bajo /v1 para que el rewrite /api/payments/:path* del
-// front resuelva 1:1 (mismo patrón que loyalty-service).
-app.use("/v1/checkout", checkoutRouter); // POST / y GET /:bookingId
-app.use("/v1/admin", adminRouter); // POST /payments (pago manual front-desk)
-
-app.use(errorHandler);
-
-const PORT = process.env.PORT || 3010;
+const app = createApp();
+const PORT = Number(process.env.PORT) || 3010;
 
 app.listen(PORT, () => {
   console.log(`[payment-service] Servidor corriendo en puerto ${PORT}`);
 });
+
+// Sin RABBITMQ_URL los eventos quedan `pending` y el cobro sigue funcionando.
+if (process.env.RABBITMQ_URL) {
+  startOutboxDispatcher();
+  console.log("[payment-service] Outbox dispatcher iniciado (hotelsync.events)");
+}

@@ -118,7 +118,21 @@ services:
     volumes:
       - loyalty_data:/var/lib/postgresql/data
 
-
+  payment-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: payment_db
+      POSTGRES_USER: hotelsync
+      POSTGRES_PASSWORD: payment_dev
+    ports:
+      - "5441:5432"
+    volumes:
+      - payment_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotelsync -d payment_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   adminer:
     image: adminer:4
@@ -214,6 +228,8 @@ services:
       # Clave estable separada para derivar el manage_token idempotente de OTAs.
       CHANNEL_MANAGER_MANAGE_TOKEN_SECRET: hotelsync-dev-channel-manage-token-secret-change-me
       LOYALTY_SERVICE_KEY: hotelsync-dev-loyalty-key-change-me
+      # payment-service lee reservas con x-payment-key. Solo desarrollo.
+      PAYMENT_SERVICE_KEY: hotelsync-dev-payment-key-change-me
       RABBITMQ_URL: amqp://rabbitmq:5672
     depends_on:
       booking-db:
@@ -429,6 +445,32 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  payment-service:
+    build:
+      context: .
+      dockerfile: services/payment-service/Dockerfile
+    ports:
+      - "3010:3010"
+    environment:
+      NODE_ENV: production
+      PORT: "3010"
+      DATABASE_URL: postgresql://hotelsync:payment_dev@payment-db:5432/payment_db
+      # Debe ser idéntico al de user-service.
+      AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
+      BOOKING_SERVICE_URL: http://booking-service:3004/v1
+      # = PAYMENT_SERVICE_KEY de booking-service.
+      BOOKING_SERVICE_KEY: hotelsync-dev-payment-key-change-me
+      PAYMENT_CURRENCY: COP
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    depends_on:
+      payment-db:
+        condition: service_healthy
+      booking-service:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   property_data:
   rate_availability_data:
@@ -441,3 +483,4 @@ volumes:
   rabbitmq_data:
   redis_data:
   loyalty_data:
+  payment_data:

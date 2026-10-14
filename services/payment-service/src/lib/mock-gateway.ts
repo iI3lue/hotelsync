@@ -32,6 +32,17 @@ export function expiryValid(expMonth: number, expYear: number, now = new Date())
   return endOfMonth.getTime() >= now.getTime();
 }
 
+export type CardBrand = "VISA" | "MASTERCARD" | "AMEX" | "OTHER";
+
+/** Marca por prefijo (IIN), solo para mostrar "Visa •••• 1111". */
+export function cardBrand(number: string): CardBrand {
+  const d = number.replace(/\D/g, "");
+  if (/^4/.test(d)) return "VISA";
+  if (/^(5[1-5]|2(2[2-9]|[3-6]\d|7[01]|720))/.test(d)) return "MASTERCARD";
+  if (/^3[47]/.test(d)) return "AMEX";
+  return "OTHER";
+}
+
 export interface AuthorizationResult {
   authorized: boolean;
   auth_code: string | null;
@@ -43,11 +54,16 @@ export function authorizeCard(card: CardInput, amountMinor: number): Authorizati
   if (!luhnValid(digits)) return { authorized: false, auth_code: null, reason: "Número de tarjeta inválido" };
   if (!expiryValid(card.exp_month, card.exp_year))
     return { authorized: false, auth_code: null, reason: "Tarjeta vencida" };
-  if (!/^\d{3,4}$/.test(card.cvc)) return { authorized: false, auth_code: null, reason: "CVV inválido" };
+  const cvcLength = cardBrand(digits) === "AMEX" ? 4 : 3;
+  if (!new RegExp(`^\\d{${cvcLength}}$`).test(card.cvc))
+    return { authorized: false, auth_code: null, reason: "CVV inválido" };
   if (!Number.isFinite(amountMinor) || amountMinor <= 0)
     return { authorized: false, auth_code: null, reason: "Monto inválido" };
   if (digits === "4000000000000002")
     return { authorized: false, auth_code: null, reason: "Tarjeta rechazada por el banco (simulado)" };
-  const authCode = `MOCK-${Date.now().toString(36).toUpperCase()}`;
+  const authCode = `MOCK-${Date.now().toString(36).toUpperCase()}${Math.floor(Math.random() * 1296)
+    .toString(36)
+    .toUpperCase()
+    .padStart(2, "0")}`;
   return { authorized: true, auth_code: authCode };
 }

@@ -82,6 +82,8 @@ export function isTrustedService(req: Request): boolean {
     { header: "x-housekeeping-key", secret: process.env.HOUSEKEEPING_SERVICE_KEY },
     { header: "x-billing-key", secret: process.env.BILLING_SERVICE_KEY },
     { header: "x-user-key", secret: process.env.USER_SERVICE_KEY },
+    // payment-service: verifica el total y el dueño antes de cobrar.
+    { header: "x-payment-key", secret: process.env.PAYMENT_SERVICE_KEY },
     {
       header: "x-channel-manager-key",
       secret: process.env.CHANNEL_MANAGER_SERVICE_KEY,

@@ -31,6 +31,26 @@ export interface RequestOptions {
   retries?: number;
 }
 
+/**
+ * Error HTTP con el status y el código del backend (`{error, message}`).
+ * Extiende Error: el código existente que solo lee `.message` sigue igual.
+ */
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    public status: number,
+    public code?: string
+  ) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
+
+async function toApiError(res: Response): Promise<ApiError> {
+  const err = (await res.json().catch(() => ({}))) as { message?: string; error?: string };
+  return new ApiError(err.message || `Error ${res.status}`, res.status, err.error);
+}
+
 const DEFAULT_TIMEOUT_MS = 10_000;
 export const LONG_TIMEOUT_MS = 30_000;
 
@@ -87,20 +107,19 @@ async function fetchWithSession(
   }
 }
 
-export async function clientFetch<T>(url: string, opts: RequestOptions = {}): Promise<T> {
+export async function clientFetch<T>(
+  url: string,
+  opts: RequestOptions = {},
+  headers: Record<string, string> = {}
+): Promise<T> {
   const res = await fetchWithSession(
     url,
     {
-      headers: { ...authHeader() },
+      headers: { ...authHeader(), ...headers },
     },
     opts
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(
-      (err as { message?: string }).message || `Error ${res.status}`
-    );
-  }
+  if (!res.ok) throw await toApiError(res);
   return res.json() as Promise<T>;
 }
 
@@ -125,12 +144,7 @@ export async function clientPost<T>(
     // puede dar mÃ¡s timeout para backends dormidos.
     { ...opts, retries: 0 }
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(
-      (err as { message?: string }).message || `Error ${res.status}`
-    );
-  }
+  if (!res.ok) throw await toApiError(res);
   return res.json() as Promise<T>;
 }
 
@@ -235,12 +249,7 @@ async function putJson<T>(url: string, body: unknown): Promise<T> {
     body: JSON.stringify(body),
     signal: timeoutSignal(DEFAULT_TIMEOUT_MS),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(
-      (err as { message?: string }).message || `Error ${res.status}`
-    );
-  }
+  if (!res.ok) throw await toApiError(res);
   return res.json() as Promise<T>;
 }
 
@@ -378,12 +387,7 @@ export async function updateStaff(
     },
     { retries: 0 }
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(
-      (err as { message?: string }).message || `Error ${res.status}`
-    );
-  }
+  if (!res.ok) throw await toApiError(res);
   return res.json() as Promise<StaffMember>;
 }
 
@@ -433,12 +437,102 @@ export async function setHotelStaffActive(
     },
     { retries: 0 }
   );
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(
-      (err as { message?: string }).message || `Error ${res.status}`
-    );
-  }
+  if (!res.ok) throw await toApiError(res);
   return res.json() as Promise<StaffAssignment>;
 }
 
+
+// ─── Pagos (payment-service, rewrite /api/payments) ─────────────────────
+
+export type PaymentMethod = "CREDIT_CARD" | "CASH" | "TRANSFER" | "TERMINAL";
+export type ManualPaymentMethod = Exclude<PaymentMethod, "CREDIT_CARD">;
+
+export interface PaymentTransaction {
+  transaction_id: string;
+  booking_id: string;
+  amount: number;
+  currency: string;
+  method: PaymentMethod;
+  status: "PROCESSING" | "COMPLETED" | "FAILED" | "REFUNDED";
+  channel: "WEB" | "FRONT_DESK";
+  failure_reason: string | null;
+  auth_code: string | null;
+  card_brand: string | null;
+  card_last4: string | null;
+  attempts: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PaymentStatusInfo {
+  booking_id: string;
+  booking_status: string;
+  payment_status: "PENDING" | "PAID";
+  payment_method_preference: "ONLINE" | "RECEPTION" | null;
+  amount_due: number;
+  currency: string;
+  transaction: PaymentTransaction | null;
+}
+
+export interface CardPayload {
+  number: string;
+  exp_month: number;
+  exp_year: number;
+  cvc: string;
+  holder?: string;
+}
+
+function manageHeaders(manageToken?: string): Record<string, string> {
+  return manageToken ? { "x-manage-token": manageToken } : {};
+}
+
+/**
+ * Cobro web (Flujo A). NUNCA se reintenta desde el cliente: si la red falla
+ * a mitad de camino, consultar `fetchPaymentStatus` antes de volver a cobrar
+ * (el servidor es idempotente por reserva y nunca cobra dos veces).
+ */
+export async function processWebPayment(
+  bookingId: string,
+  card: CardPayload,
+  manageToken?: string
+): Promise<{ data: PaymentTransaction; replay: boolean }> {
+  return clientPost(
+    "/api/payments/checkout",
+    { booking_id: bookingId, card },
+    manageHeaders(manageToken),
+    { timeoutMs: LONG_TIMEOUT_MS }
+  );
+}
+
+export async function fetchPaymentStatus(
+  bookingId: string,
+  manageToken?: string
+): Promise<PaymentStatusInfo> {
+  const res = await clientFetch<{ data: PaymentStatusInfo }>(
+    `/api/payments/checkout/${encodeURIComponent(bookingId)}`,
+    {},
+    manageHeaders(manageToken)
+  );
+  return res.data;
+}
+
+/** Pago manual en recepción (Flujo B). Solo staff; idempotente por reserva. */
+export async function processFrontDeskPayment(
+  bookingId: string,
+  method: ManualPaymentMethod,
+  receivedBy?: string
+): Promise<{ data: PaymentTransaction; replay: boolean }> {
+  return clientPost(
+    "/api/payments/admin/payments",
+    { booking_id: bookingId, method, ...(receivedBy ? { received_by: receivedBy } : {}) },
+    {},
+    { timeoutMs: LONG_TIMEOUT_MS }
+  );
+}
+
+export async function fetchPaymentStatusForStaff(bookingId: string): Promise<PaymentStatusInfo> {
+  const res = await clientFetch<{ data: PaymentStatusInfo }>(
+    `/api/payments/admin/payments/${encodeURIComponent(bookingId)}`
+  );
+  return res.data;
+}
