@@ -4,7 +4,7 @@ import { LoyaltyCard } from "@/components/LoyaltyCard";
 import { DangerZone } from "@/components/DangerZone";
 
 export const metadata: Metadata = {
-  title: "Mi perfil — HotelSync",
+  title: "Mi perfil",
   description: "Tus datos de cuenta: nombre, correo, foto y teléfono.",
 };
 

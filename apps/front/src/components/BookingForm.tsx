@@ -1,5 +1,7 @@
 "use client";
 
+import { roomImage } from "@/lib/imagery";
+
 import { useState } from "react";
 import type { Booking, BookingCreated, RoomType } from "@/lib/api";
 import { LONG_TIMEOUT_MS, fetchAvailabilityRange, postJson } from "@/lib/api-client";
@@ -91,8 +93,8 @@ function StepIndicator({ steps, current }: StepIndicatorProps) {
 /* ─── Price breakdown ───────────────────────────────────────── */
 function PriceBreakdown({ nights, rate, total }: { nights: number; rate: number; total: number }) {
   return (
-    <div className="animate-slide-up rounded-2xl border border-brand-gold/20 bg-brand-gold/6 p-5 dark:bg-brand-gold/8">
-      <h3 className="mb-3 text-sm font-semibold uppercase tracking-wider text-brand-gold">
+    <div className="animate-slide-up border-t border-brand-navy/12 pt-5 dark:border-white/12 lg:hidden">
+      <h3 className="eyebrow mb-3">
         Resumen de precio
       </h3>
       <div className="space-y-2 text-sm">
@@ -104,10 +106,10 @@ function PriceBreakdown({ nights, rate, total }: { nights: number; rate: number;
           <span>Noches</span>
           <span className="tabular-nums font-medium">× {nights}</span>
         </div>
-        <div className="my-2 h-px bg-brand-gold/20" />
+        <div className="my-2 h-px bg-brand-navy/10 dark:bg-white/10" />
         <div className="flex justify-between text-base font-bold text-brand-navy dark:text-white">
           <span>Total</span>
-          <span className="tabular-nums text-brand-gold">{formatPrice(total)}</span>
+          <span className="tabular-nums">{formatPrice(total)}</span>
         </div>
       </div>
     </div>
@@ -126,7 +128,7 @@ function BookingSuccess({ hotelName, roomTypeName, booking, onCopy, copied }: {
   const isCancelled = booking.status === "cancelled";
 
   return (
-    <div className="animate-scale-in rounded-2.5xl border border-brand-navy/6 bg-white p-8 shadow-elevated dark:border-white/6 dark:bg-brand-navy-800">
+    <div className="animate-scale-in mx-auto max-w-2xl border border-brand-navy/10 bg-white p-8 dark:border-white/10 dark:bg-brand-navy-800 md:p-12">
       {/* Status icon */}
       <div className="mb-6 flex justify-center">
         <div className={`flex h-16 w-16 items-center justify-center rounded-full ${
@@ -151,7 +153,7 @@ function BookingSuccess({ hotelName, roomTypeName, booking, onCopy, copied }: {
       </div>
 
       {/* Title */}
-      <h2 className="mb-1 text-center text-xl font-semibold text-brand-navy dark:text-white">
+      <h2 className="mb-2 text-center font-display text-[2.25rem] leading-tight text-brand-navy dark:text-white">
         {isConfirmed ? "¡Reserva confirmada!" : isCancelled ? "Reserva cancelada" : "Reserva creada"}
       </h2>
       <p className="mb-6 text-center text-sm text-gray-500 dark:text-gray-400">
@@ -163,7 +165,7 @@ function BookingSuccess({ hotelName, roomTypeName, booking, onCopy, copied }: {
       </p>
 
       {/* Details */}
-      <div className="mb-6 rounded-xl border border-gray-100 bg-gray-50 p-4 dark:border-white/6 dark:bg-white/4">
+      <div className="mb-6 border-y border-brand-navy/10 py-4 dark:border-white/10">
         <div className="space-y-2 text-sm">
           <div className="flex justify-between">
             <span className="text-gray-500 dark:text-gray-400">Hotel</span>
@@ -437,7 +439,8 @@ export default function BookingForm({
   }
 
   return (
-    <div className="rounded-2.5xl border border-brand-navy/6 bg-white p-6 shadow-card dark:border-white/6 dark:bg-brand-navy-800 md:p-8">
+    <div className="grid gap-10 lg:grid-cols-[minmax(0,7fr)_minmax(0,4fr)] lg:gap-14">
+    <div className="min-w-0 border border-brand-navy/10 bg-white p-6 dark:border-white/10 dark:bg-brand-navy-800 md:p-10">
       {/* Step indicator */}
       <StepIndicator steps={STEPS} current={step} />
 
@@ -445,8 +448,8 @@ export default function BookingForm({
       {step === 0 && (
         <div className="animate-slide-up space-y-6">
           <div>
-            <h2 className="mb-1 text-lg font-semibold text-brand-navy dark:text-white">Elegí tus fechas</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <h2 className="mb-2 font-display text-[1.9rem] leading-tight text-brand-navy dark:text-white">Elegí tus fechas</h2>
+            <p className="text-[0.925rem] text-brand-navy/60 dark:text-white/55">
               Tocá la llegada y después la salida. Los días en verde tienen habitaciones disponibles.
             </p>
           </div>
@@ -481,8 +484,8 @@ export default function BookingForm({
       {step === 1 && (
         <div className="animate-slide-up space-y-6">
           <div>
-            <h2 className="mb-1 text-lg font-semibold text-brand-navy dark:text-white">Datos del huésped</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <h2 className="mb-2 font-display text-[1.9rem] leading-tight text-brand-navy dark:text-white">Datos del huésped</h2>
+            <p className="text-[0.925rem] text-brand-navy/60 dark:text-white/55">
               El hotel te identifica con estos datos.
             </p>
           </div>
@@ -543,14 +546,14 @@ export default function BookingForm({
       {step === 2 && (
         <div className="animate-slide-up space-y-6">
           <div>
-            <h2 className="mb-1 text-lg font-semibold text-brand-navy dark:text-white">Revisá tu reserva</h2>
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+            <h2 className="mb-2 font-display text-[1.9rem] leading-tight text-brand-navy dark:text-white">Revisá tu reserva</h2>
+            <p className="text-[0.925rem] text-brand-navy/60 dark:text-white/55">
               Verificá los datos antes de confirmar.
             </p>
           </div>
 
           {/* Summary card */}
-          <div className="rounded-xl border border-gray-100 bg-gray-50 p-5 dark:border-white/6 dark:bg-white/4">
+          <div className="border-y border-brand-navy/10 py-2 dark:border-white/10">
             <div className="space-y-3 text-sm">
               <div className="flex justify-between">
                 <span className="text-gray-500 dark:text-gray-400">Hotel</span>
@@ -584,13 +587,13 @@ export default function BookingForm({
           {total !== null && <PriceBreakdown nights={nights} rate={rate} total={total} />}
 
           {/* Payment note */}
-          <div className="flex items-start gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 dark:border-blue-900/30 dark:bg-blue-950/20">
-            <svg className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <div className="flex items-start gap-3 border-l-2 border-brand-gold bg-brand-paper p-4 dark:bg-white/5">
+            <svg className="mt-0.5 h-4 w-4 shrink-0 text-brand-gold" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 8.25h19.5M2.25 9h19.5m-16.5 5.25h6m-6 2.25h3m-3.75 3h15a2.25 2.25 0 002.25-2.25V6.75A2.25 2.25 0 0019.5 4.5h-15a2.25 2.25 0 00-2.25 2.25v10.5A2.25 2.25 0 004.5 19.5z" />
             </svg>
             <div>
-              <p className="text-sm font-semibold text-blue-800 dark:text-blue-300">Pago en recepción</p>
-              <p className="mt-0.5 text-xs text-blue-700 dark:text-blue-400">
+              <p className="text-sm font-medium text-brand-navy dark:text-white">Pago en recepción</p>
+              <p className="mt-0.5 text-xs text-brand-navy/60 dark:text-white/55">
                 El pago se realiza al hacer check-in. Tu reserva queda asegurada con este formulario.
               </p>
             </div>
@@ -614,7 +617,7 @@ export default function BookingForm({
       <div className="mt-6 flex items-center justify-between gap-3">
         {step > 0 ? (
           <button type="button" onClick={goBack} className="btn-ghost" disabled={saving}>
-            ← Atrás
+            Atrás
           </button>
         ) : <div />}
 
@@ -625,7 +628,7 @@ export default function BookingForm({
             disabled={checking}
             className="btn-primary"
           >
-            {checking ? "Verificando…" : "Siguiente →"}
+            {checking ? "Verificando…" : "Continuar"}
           </button>
         ) : (
           <button
@@ -646,6 +649,44 @@ export default function BookingForm({
           </button>
         )}
       </div>
+    </div>
+
+    {/* ── Resumen de la estancia (fijo en escritorio) ── */}
+    <aside aria-label="Resumen de tu estancia" className="lg:sticky lg:top-24 lg:self-start">
+      <div className="relative aspect-[4/3] overflow-hidden bg-brand-stone dark:bg-brand-navy-800">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={roomImage(roomType, 1000)} alt={roomType.name} className="h-full w-full object-cover" />
+      </div>
+      <p className="eyebrow mt-6">{hotelName}</p>
+      <h2 className="mt-2 font-display text-[1.75rem] leading-tight text-brand-navy dark:text-white">{roomType.name}</h2>
+      <dl className="mt-6 divide-y divide-brand-navy/10 border-y border-brand-navy/10 text-[0.9rem] dark:divide-white/10 dark:border-white/10">
+        <div className="flex justify-between gap-4 py-3">
+          <dt className="text-brand-navy/55 dark:text-white/50">Llegada</dt>
+          <dd className="text-brand-navy dark:text-white">{checkIn ? formatDate(checkIn) : "—"}</dd>
+        </div>
+        <div className="flex justify-between gap-4 py-3">
+          <dt className="text-brand-navy/55 dark:text-white/50">Salida</dt>
+          <dd className="text-brand-navy dark:text-white">{checkOut ? formatDate(checkOut) : "—"}</dd>
+        </div>
+        <div className="flex justify-between gap-4 py-3">
+          <dt className="text-brand-navy/55 dark:text-white/50">Noches</dt>
+          <dd className="tabular-nums text-brand-navy dark:text-white">{nights > 0 ? nights : "—"}</dd>
+        </div>
+        <div className="flex justify-between gap-4 py-3">
+          <dt className="text-brand-navy/55 dark:text-white/50">Tarifa por noche</dt>
+          <dd className="tabular-nums text-brand-navy dark:text-white">{formatPrice(rate)}</dd>
+        </div>
+      </dl>
+      <div className="flex items-baseline justify-between pt-5">
+        <span className="eyebrow">Total</span>
+        <span className="font-display text-[2.25rem] leading-none tabular-nums text-brand-navy dark:text-white">
+          {total !== null ? formatPrice(total) : "—"}
+        </span>
+      </div>
+      <p className="mt-4 text-[0.8rem] leading-relaxed text-brand-navy/50 dark:text-white/45">
+        Pagás en el hotel al llegar. Las condiciones de cancelación se muestran en la página del hotel.
+      </p>
+    </aside>
     </div>
   );
 }

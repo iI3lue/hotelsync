@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import ResetForm from "./form";
 
 export const metadata: Metadata = {
-  title: "Restablecer contraseña — HotelSync",
+  title: "Restablecer contraseña",
   description: "Creá una contraseña nueva con tu enlace de recuperación.",
 };
 

@@ -118,13 +118,13 @@ export default function RangeCalendar({
         startMonth={new Date(today.getFullYear(), today.getMonth(), 1)}
         endMonth={new Date(today.getFullYear() + 1, today.getMonth(), 1)}
         classNames={{
-          root: "rdp-custom",
+          root: "rdp-root rdp-custom",
         }}
       />
       {roomTypeId ? (
         <div className="mt-3 flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-300" aria-live="polite">
           <span className="inline-flex items-center gap-1">
-            <span aria-hidden="true" className="inline-block h-3 w-3 rounded-full bg-green-500" />
+            <span aria-hidden="true" className="inline-block h-3 w-3 rounded-full bg-[#2F6B4F]" />
             Con disponibilidad
           </span>
           <span className="inline-flex items-center gap-1">

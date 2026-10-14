@@ -10,6 +10,8 @@
     "test": "jest --passWithNoTests"
   },
   "dependencies": {
+    "@fontsource-variable/jost": "^5.3.0",
+    "@fontsource/gilda-display": "^5.3.0",
     "framer-motion": "^14.0.0",
     "next": "^15.1.0",
     "next-themes": "^0.4.6",

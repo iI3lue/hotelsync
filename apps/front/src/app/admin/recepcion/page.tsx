@@ -6,7 +6,7 @@ import { fetchHotelById, fetchHotels } from "@/lib/api";
 import { getSessionScope } from "@/lib/server-session";
 
 export const metadata: Metadata = {
-  title: "Recepción en HotelSync",
+  title: "Recepción",
   description: "Reservas automáticas desde Booking y llegadas del día con check-in y check-out.",
 };
 
