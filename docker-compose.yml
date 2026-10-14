@@ -207,6 +207,8 @@ services:
       FRONT_DESK_SERVICE_KEY: hotelsync-dev-front-desk-key-change-me
       HOUSEKEEPING_SERVICE_KEY: hotelsync-dev-housekeeping-key-change-me
       BILLING_SERVICE_KEY: hotelsync-dev-billing-key-change-me
+      # Clave exclusiva para la verificación de reservas activas (baja de cuentas).
+      USER_SERVICE_KEY: hotelsync-dev-user-key-change-me
       # Ingesta Channel Manager (contrato interno §5.4). Solo desarrollo.
       CHANNEL_MANAGER_SERVICE_KEY: hotelsync-dev-channel-manager-key-change-me
       # Clave estable separada para derivar el manage_token idempotente de OTAs.
@@ -364,6 +366,9 @@ services:
       AUTH0_DOMAIN: ${AUTH0_DOMAIN:-}
       AUTH0_CLIENT_ID: ${AUTH0_CLIENT_ID:-}
       LOYALTY_SERVICE_KEY: hotelsync-dev-loyalty-key-change-me
+      # Verificación de reservas activas en Booking (baja de cuentas).
+      BOOKING_SERVICE_URL: http://booking-service:3004/v1
+      BOOKING_SERVICE_KEY: hotelsync-dev-user-key-change-me
     depends_on:
       user-db:
         condition: service_healthy

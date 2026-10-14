@@ -15,6 +15,7 @@ jest.mock("../../src/lib/prisma.js", () => ({
       create: jest.fn(),
       update: jest.fn(),
       updateMany: jest.fn(),
+      count: jest.fn(),
     },
     eventOutbox: {
       create: jest.fn(),
@@ -49,6 +50,7 @@ const mockRelease = releaseInventory as jest.Mock;
 process.env.FRONT_DESK_SERVICE_KEY = "test-front-desk-key";
 process.env.HOUSEKEEPING_SERVICE_KEY = "test-housekeeping-key";
 process.env.BILLING_SERVICE_KEY = "test-billing-key";
+process.env.USER_SERVICE_KEY = "test-user-key";
 process.env.CHANNEL_MANAGER_SERVICE_KEY = "test-channel-manager-key";
 process.env.CHANNEL_MANAGER_MANAGE_TOKEN_SECRET =
   "test-channel-manage-token-secret-32b!";
@@ -412,6 +414,34 @@ describe("Booking Service API", () => {
       );
       expect(res.status).toBe(409);
       expect(mockRelease).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("GET /v1/bookings/by-user/:userId/has-active", () => {
+    it("should return 401 without the user service key", async () => {
+      const res = await request(app).get(
+        `/v1/bookings/by-user/${VALID_UUID}/has-active`
+      );
+      expect(res.status).toBe(401);
+      expect(mockPrisma.booking.count).not.toHaveBeenCalled();
+    });
+
+    it("should report active bookings with a valid service key", async () => {
+      mockPrisma.booking.count.mockResolvedValue(1);
+
+      const res = await request(app)
+        .get(`/v1/bookings/by-user/${VALID_UUID}/has-active`)
+        .set("x-user-key", "test-user-key");
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({ has_active: true, count: 1 });
+    });
+
+    it("should return 400 for a non-UUID user id", async () => {
+      const res = await request(app)
+        .get("/v1/bookings/by-user/not-a-uuid/has-active")
+        .set("x-user-key", "test-user-key");
+      expect(res.status).toBe(400);
+      expect(mockPrisma.booking.count).not.toHaveBeenCalled();
     });
   });
 });

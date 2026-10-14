@@ -67,6 +67,10 @@ export const bookingIdParamSchema = z.object({
   id: z.string().uuid(),
 });
 
+export const bookingUserIdParamSchema = z.object({
+  userId: z.string().uuid(),
+});
+
 export const listBookingsQuerySchema = z.object({
   hotel_id: z.string().uuid().optional(),
   status: bookingStatusSchema.optional(),
@@ -81,6 +85,8 @@ export const listBookingsQuerySchema = z.object({
 export const manageTokenQuerySchema = z.object({
   token: z.string().min(1).max(256).optional(),
 });
+
+export type BookingUserIdParam = z.infer<typeof bookingUserIdParamSchema>;
 
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type ListBookingsQuery = z.infer<typeof listBookingsQuerySchema>;

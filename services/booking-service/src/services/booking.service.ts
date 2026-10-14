@@ -621,6 +621,25 @@ export class BookingService {
     return bookings.map(stripManageHash);
   }
 
+  /**
+   * Chequeo para la baja de cuentas (user-service, server-to-server):
+   * reservas vinculadas a la cuenta en estado pendiente/confirmado con
+   * check-out hoy o futuro. Solo `booked_by_user_id` (vínculo exacto de
+   * cuenta, sin el fallback por email de `listByUser`).
+   */
+  async hasActiveByUser(userId: string) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const count = await prisma.booking.count({
+      where: {
+        booked_by_user_id: userId,
+        status: { in: ["pending", "confirmed"] },
+        check_out: { gte: today },
+      },
+    });
+    return { has_active: count > 0, count };
+  }
+
   /** Cancelacion con acceso: staff o manage token del huesped. */
   async cancel(id: string, access: BookingAccess) {
     const existing = await this.getByIdWithAccess(id, access);
