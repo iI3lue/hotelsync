@@ -14,7 +14,7 @@
 - [x] Repo `iI3lue/hotelsync-loyalty-service` con split verificado.
 - [x] Servicio Render `hotelsync-loyalty-service` (free, oregon, auto-deploy): deploy `live`, `/health` 200, `/v1/levels` 200 con los 3 niveles.
 - [x] Env vars seteadas con valores dev (decisión del usuario): `DATABASE_URL` (Neon pooler), `AUTH_JWT_SECRET` (= user-service), `BOOKING/USER_SERVICE_URL` (onrender), `BOOKING/USER_SERVICE_KEY`.
-- [ ] Agregar `RABBITMQ_URL` de producción (sin él, el earn de puntos por `booking.completed` queda `pending`; el resto funciona).
+- [x] Agregar `RABBITMQ_URL` de producción (seteado 2026-10-14 vía MCP en loyalty + payment; redesplegaron solos).
 - [ ] En el front de prod (Vercel): setear `NEXT_PUBLIC_LOYALTY_API_URL=https://hotelsync-loyalty-service.onrender.com/v1` y **redeploy** (es build-time). Sin esto, la `LoyaltyCard` falla en producción.
 
 ## 3. Limpieza del clon trampa
@@ -35,8 +35,8 @@
 - [x] Proyecto Neon `hotelsync-payment-db` (`empty-sea-60322637`, `payment_db`, us-west-2).
 - [x] Servicio Render `hotelsync-payment-service` (free, oregon, auto-deploy): `/health` 200, checkout sin auth 401.
 - [x] Env vars con valores dev: `DATABASE_URL` (Neon pooler), `AUTH_JWT_SECRET` (= user-service), `BOOKING_SERVICE_URL` (onrender), `BOOKING_SERVICE_KEY`, `PAYMENT_CURRENCY=COP`.
-- [ ] Agregar `RABBITMQ_URL` de producción (mismo que loyalty).
-- [ ] **Requisito para que el checkout funcione en prod**: booking de prod corre código viejo (sin `x-payment-key` ni `payment_status` → checkout devuelve 502). Hay que sincronizar el split `hotelsync-booking-service` con el monorepo, setearle `PAYMENT_SERVICE_KEY` y dejar que Render redespliegue.
+- [x] Agregar `RABBITMQ_URL` de producción (mismo que loyalty).
+- [x] **Booking de prod actualizado** (2026-10-14): split sincronizado (payment + `has-active` que le faltaba desde el 11-oct + helper JWT local para tests standalone), pusheado, `PAYMENT_SERVICE_KEY` seteada, deploy `live` verificado. Cadena prod `payment→booking` verificada (checkout→404, antes 502).
 - [ ] En el front de prod (Vercel): `NEXT_PUBLIC_PAYMENT_API_URL=https://hotelsync-payment-service.onrender.com/v1` + redeploy (build-time).
 - [ ] Próximo sync front→prod: preservar el bloque compat de `api-client.ts` en front-sync (solo existe ahí) al traer estos 13 archivos modificados.
 
