@@ -3,7 +3,7 @@ import request from "supertest";
 import express from "express";
 import bookingsRouter from "../../src/routes/bookings.js";
 import { errorHandler, AppError } from "../../src/middleware/error-handler.js";
-import { signAccessToken } from "../../../user-service/src/lib/tokens.js";
+import { signAccessToken } from "../helpers/tokens.js";
 
 // Mock Prisma
 jest.mock("../../src/lib/prisma.js", () => ({
