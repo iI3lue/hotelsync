@@ -17,7 +17,7 @@
 - [x] Agregar `RABBITMQ_URL` de producción (seteado 2026-10-14 vía MCP en loyalty + payment; redesplegaron solos).
 - [ ] En el front de prod (Vercel): setear `NEXT_PUBLIC_LOYALTY_API_URL=https://hotelsync-loyalty-service.onrender.com/v1` y **redeploy** (es build-time). Sin esto, la `LoyaltyCard` falla en producción.
   - **Verificado 2026-10-15**: el rewrite `/api/loyalty/*` devuelve 404 `DNS_HOSTNAME_RESOLVED_PRIVATE` (Vercel) → el env faltaba al build y cae a `http://localhost:3009/v1`. Por eso NINGÚN request a loyalty (incluido el ping del WarmUp) llega al servicio. Bloqueante hasta setear el env + redeploy.
-- [x] WarmUp del front: despertaba 6 servicios, faltaban users/loyalty/payments. Agregados (9 en total), commit monorepo `bede5ac` + prod `56dc892` (2026-10-15). Loyalty no despertará hasta resolver el env de arriba.
+- [x] WarmUp del front: dos bugs. (1) **Nunca se montaba**: el rediseño (`33bdb4e`) borró `import WarmUp` y `<WarmUp />` del `layout.tsx` — el warm-up jamás corrió desde el 29-sep (nació en `115a2e0` montado, se perdió al portar el rediseño). (2) Lista desactualizada: 6 → 9 servicios (faltaban users/loyalty/payments). Ambos fixeados, commit monorepo `bede5ac`+`c06ab15`, prod `56dc892`+`b352526` (2026-10-15). Verificado en vivo: `layout-cc8ad70ab13759b1.js` sirve los 9 paths. Loyalty igual no despertará hasta resolver el env de arriba (el ping rebota en Vercel con private DNS).
 
 ## 3. Limpieza del clon trampa
 
