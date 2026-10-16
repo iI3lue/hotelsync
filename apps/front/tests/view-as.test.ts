@@ -1,6 +1,7 @@
 import {
   adminSectionsFor,
   defaultRouteForRole,
+  effectiveViewAs,
   isAllowedPathForRole,
   resolveViewedRole,
 } from "@/lib/view-as";
@@ -24,6 +25,24 @@ describe("resolveViewedRole", () => {
 
   it("sin sesión se asume invitado", () => {
     expect(resolveViewedRole(null, null)).toBe("GUEST");
+  });
+});
+
+describe("effectiveViewAs", () => {
+  it("ignora la preferencia guardada si el rol real no es SUPER_ADMIN", () => {
+    expect(effectiveViewAs("MANAGER", "MANAGER")).toBeNull();
+    expect(effectiveViewAs("RECEPTIONIST", "GUEST")).toBeNull();
+    expect(effectiveViewAs("GUEST", "SUPER_ADMIN")).toBeNull();
+    expect(effectiveViewAs(null, "MANAGER")).toBeNull();
+  });
+
+  it("el SUPER_ADMIN real ve la preferencia guardada", () => {
+    expect(effectiveViewAs("SUPER_ADMIN", "GUEST")).toBe("GUEST");
+    expect(effectiveViewAs("SUPER_ADMIN", "MANAGER")).toBe("MANAGER");
+  });
+
+  it("sin preferencia guardada el SUPER_ADMIN se ve a sí mismo", () => {
+    expect(effectiveViewAs("SUPER_ADMIN", null)).toBeNull();
   });
 });
 
