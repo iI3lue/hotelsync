@@ -16,6 +16,8 @@
 - [x] Env vars seteadas con valores dev (decisión del usuario): `DATABASE_URL` (Neon pooler), `AUTH_JWT_SECRET` (= user-service), `BOOKING/USER_SERVICE_URL` (onrender), `BOOKING/USER_SERVICE_KEY`.
 - [x] Agregar `RABBITMQ_URL` de producción (seteado 2026-10-14 vía MCP en loyalty + payment; redesplegaron solos).
 - [ ] En el front de prod (Vercel): setear `NEXT_PUBLIC_LOYALTY_API_URL=https://hotelsync-loyalty-service.onrender.com/v1` y **redeploy** (es build-time). Sin esto, la `LoyaltyCard` falla en producción.
+  - **Verificado 2026-10-15**: el rewrite `/api/loyalty/*` devuelve 404 `DNS_HOSTNAME_RESOLVED_PRIVATE` (Vercel) → el env faltaba al build y cae a `http://localhost:3009/v1`. Por eso NINGÚN request a loyalty (incluido el ping del WarmUp) llega al servicio. Bloqueante hasta setear el env + redeploy.
+- [x] WarmUp del front: despertaba 6 servicios, faltaban users/loyalty/payments. Agregados (9 en total), commit monorepo `bede5ac` + prod `56dc892` (2026-10-15). Loyalty no despertará hasta resolver el env de arriba.
 
 ## 3. Limpieza del clon trampa
 
