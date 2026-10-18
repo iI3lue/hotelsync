@@ -46,3 +46,11 @@
 ## 6. Próximo PRD (decisión abierta)
 
 - [ ] Elegir: **notification-service** (mailer hoy es un stub con `console.log`; lo necesitan recuperación de contraseña, confirmación de reserva y recibos de pago) o **reviews-service** (el rediseño eliminó ratings inventados y no hay prueba social real).
+
+## 7. Fuga del código de recuperación en prod — blindado 2026-10-18 ✅
+
+- [x] **Hallazgo**: `POST /v1/auth/password/code` devolvía el código de 6 dígitos de cualquier email conocido (verificado en vivo con `admin@hotelsync.local`). Causa: `MAILER_PROVIDER` no está seteado en Render → `isLogMailer()` es `true` y el flujo demo exponía el código sin gate por entorno. Mismo origen: `POST /v1/auth/password/forgot` escribía el enlace de reset (con token) en los logs de Render.
+- [x] **Fix**: `isDemoResetExposed()` en `lib/mailer.ts` = mailer `log` **y** `PASSWORD_RESET_DEMO_CODE=true`. Apagado por defecto: en prod el código ya no vuelve en la respuesta (`{ok:true}` a secas) ni el enlace se registra en logs. Prod `iI3lue/hotelsync-user-service` → `d9b726b`; en local docker-compose setea el flag para no romper la demo.
+- [ ] **DELIBERADO**: si hace falta la demo en vivo (código en pantalla en `/cuenta/recuperar`), setear `PASSWORD_RESET_DEMO_CODE=true` en Render user-service y **quitarlo al terminar**: mientras esté puesto, la fuga vuelve.
+- [ ] Consecuencia asumida: en prod sin SMTP el reset por código queda no funcional (respuesta pública "revisá tu correo" sin envío real) hasta implementar notification-service (sección 6).
+
