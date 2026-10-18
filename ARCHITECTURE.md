@@ -56,8 +56,10 @@ HOTELSYNC/
 │   │   └── (misma estructura + lib/events.ts)
 │   ├── front-desk-service/            ← Express + Prisma (3005)
 │   │   └── (misma estructura + lib/booking-client.ts)
-│   └── loyalty-service/              ← Express + Prisma (3009)
-│       └── (misma estructura + lib/{broker,consumer,booking-client,user-client}.ts)
+│   ├── loyalty-service/               ← Express + Prisma (3009)
+│   │   └── (misma estructura + lib/{broker,consumer,booking-client,user-client}.ts)
+│   └── analytics-service/             ← Express + Prisma (3011), réplicas read-only
+│       └── (misma estructura + lib/{broker,outbox,sources}.ts + jobs/{etl,scheduler}.ts)
 ├── apps/
 │   ├── web/                           ← Next.js SSR (App Router)
 │   │   ├── src/app/
@@ -75,7 +77,7 @@ HOTELSYNC/
 │       │   ├── inventory/page.tsx     ← Gestión de inventario
 │       │   └── recepcion/page.tsx     ← Llegadas + check-in/out
 │       └── package.json
-├── docker-compose.yml                 ← 9× PostgreSQL 16 (5432–5440)
+├── docker-compose.yml                 ← 11× PostgreSQL 16 (5432–5442)
 ├── tsconfig.base.json                 ← Config compartida
 ├── package.json                       ← npm workspaces
 └── .github/workflows/                 ← CI/CD
@@ -109,6 +111,14 @@ Cada microservicio tiene su propia instancia de PostgreSQL. No hay foreign keys 
 ├─────────────────────────┤
 │ loyalty_accounts        │
 │ points_transactions     │
+│ event_outbox            │
+└─────────────────────────┘
+┌─────────────────────────┐
+│   analytics_db          │
+│   (localhost:5442)      │
+├─────────────────────────┤
+│ occupancy_daily         │
+│ kpi_by_property         │
 │ event_outbox            │
 └─────────────────────────┘
 ```
@@ -247,6 +257,45 @@ CREATE TABLE event_outbox (                        -- patrón estándar HotelSyn
 );
 CREATE INDEX event_outbox_status_created_at_idx ON event_outbox(status, created_at);
 ```
+
+### Analytics Service Schema
+
+```sql
+CREATE TABLE occupancy_daily (                       -- capacidad + ocupación por hotel-día
+    hotel_id UUID NOT NULL,
+    date DATE NOT NULL,
+    available_nights INT NOT NULL,                   -- habitaciones físicas activas
+    occupied_nights INT NOT NULL,                    -- reservas confirmed que cubren la noche
+    occupancy NUMERIC(5,4) NOT NULL,                 -- 0–1
+    PRIMARY KEY (hotel_id, date)
+);
+
+CREATE TABLE kpi_by_property (                       -- ADR/RevPAR/ingreso por hotel-día
+    hotel_id UUID NOT NULL,
+    date DATE NOT NULL,
+    adr NUMERIC(12,2) NOT NULL,
+    revpar NUMERIC(12,2) NOT NULL,
+    rooms_sold INT NOT NULL,
+    revenue NUMERIC(12,2) NOT NULL,
+    PRIMARY KEY (hotel_id, date)
+);
+
+CREATE TABLE event_outbox (                          -- patrón estándar HotelSync
+    event_id UUID PRIMARY KEY,
+    event_type VARCHAR(50) NOT NULL,                 -- metrics.updated
+    payload JSONB NOT NULL,
+    status VARCHAR(20) NOT NULL DEFAULT 'pending',
+    attempts INT NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    sent_at TIMESTAMPTZ
+);
+CREATE INDEX event_outbox_status_created_at_idx ON event_outbox(status, created_at);
+```
+
+> El ETL es idempotente (upsert por `(hotel_id, date)`): correrlo dos veces no
+> duplica filas ni altera totales. `sources.ts` castea las columnas `date` a
+> `::text` porque Prisma raw las mapea a `Date` y el contrato es `YYYY-MM-DD`.
+> Los rangos son `[from, to)` y el ingreso se prorratea por noche.
 
 ## Patrones de Diseño
 
@@ -409,7 +458,11 @@ Push → Lint → Test → Build → (Deploy)
   `booking.cancelled`, `booking.completed` (Front Desk) y `checkout.completed`
   (Front Desk). Consumen: Housekeeping y Billing `checkout.completed`, y Loyalty
   `booking.completed` (cola `loyalty.points`, prefetch 1, ack manual,
-  acreditación idempotente por `booking_id`). Sin `RABBITMQ_URL` los eventos
+  acreditación idempotente por `booking_id`). Analytics corre un ETL (scheduler
+  cada 6 h o corrida manual por rango) que lee `booking_db` y `property_db`
+  mediante réplicas de solo lectura (`DATABASE_URL_BOOKING` /
+  `DATABASE_URL_PROPERTY`, sin migraciones) y publica `metrics.updated` por
+  outbox tras cada upsert de agregados. Sin `RABBITMQ_URL` los eventos
   quedan `pending` sin interrumpir la operación.
 
 ## Plan de Evolución
@@ -418,7 +471,8 @@ Push → Lint → Test → Build → (Deploy)
 - Property Service (3001) + Rate & Availability Service (3002)
 - Booking Service (3004) + Front Desk Service (3005)
 - Loyalty Service (3009, consume `booking.completed`)
-- 9× PostgreSQL (5432–5440)
+- Analytics Service (3011, ETL sobre réplicas + dashboard de revenue)
+- 11× PostgreSQL (5432–5442)
 - Frontend SSR (`/reservas/nueva` real) + Admin (`/recepcion`) + Loyalty en perfil
 
 ### V2 (Futuro)

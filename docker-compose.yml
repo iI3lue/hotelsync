@@ -117,6 +117,11 @@ services:
       POSTGRES_DB: loyalty_db
     volumes:
       - loyalty_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotelsync -d loyalty_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
   payment-db:
     image: postgres:16-alpine
@@ -130,6 +135,22 @@ services:
       - payment_data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U hotelsync -d payment_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  analytics-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: analytics_db
+      POSTGRES_USER: hotelsync
+      POSTGRES_PASSWORD: analytics_dev
+    ports:
+      - "5442:5432"
+    volumes:
+      - analytics_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hotelsync -d analytics_db"]
       interval: 5s
       timeout: 5s
       retries: 5
@@ -152,6 +173,8 @@ services:
       billing-db:
         condition: service_healthy
       user-db:
+        condition: service_healthy
+      analytics-db:
         condition: service_healthy
     restart: unless-stopped
 
@@ -385,6 +408,9 @@ services:
       # Verificación de reservas activas en Booking (baja de cuentas).
       BOOKING_SERVICE_URL: http://booking-service:3004/v1
       BOOKING_SERVICE_KEY: hotelsync-dev-user-key-change-me
+      # Solo desarrollo: expone el código de recuperación en la respuesta (demo).
+      MAILER_PROVIDER: log
+      PASSWORD_RESET_DEMO_CODE: "true"
     depends_on:
       user-db:
         condition: service_healthy
@@ -470,6 +496,33 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  analytics-service:
+    build:
+      context: .
+      dockerfile: services/analytics-service/Dockerfile
+    ports:
+      - "3011:3011"
+    environment:
+      NODE_ENV: production
+      PORT: "3011"
+      DATABASE_URL: postgresql://hotelsync:analytics_dev@analytics-db:5432/analytics_db
+      # Réplicas de SOLO LECTURA: analytics nunca escribe en bases de otros servicios.
+      DATABASE_URL_BOOKING: postgresql://hotelsync:hotelsync_dev@booking-db:5432/booking_db
+      DATABASE_URL_PROPERTY: postgresql://hotelsync:hotelsync_dev@property-db:5432/property_db
+      # Debe ser idéntico al de user-service.
+      AUTH_JWT_SECRET: hotelsync-dev-secret-change-me-min-32-chars-ok
+      RABBITMQ_URL: amqp://rabbitmq:5672
+    depends_on:
+      analytics-db:
+        condition: service_healthy
+      booking-db:
+        condition: service_healthy
+      property-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
 volumes:
   property_data:
   rate_availability_data:
@@ -483,3 +536,4 @@ volumes:
   redis_data:
   loyalty_data:
   payment_data:
+  analytics_data:

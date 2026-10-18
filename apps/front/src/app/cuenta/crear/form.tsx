@@ -54,8 +54,10 @@ function RegisterAmbient() {
 /* ─── Register form ──────────────────────────────────────────── */
 export default function CreateForm({
   params,
+  googleEnabled,
 }: {
   params: Promise<{ returnTo?: string }>;
+  googleEnabled: boolean;
 }) {
   const router = useRouter();
   const [returnTo, setReturnTo] = useState("/mis-reservas");
@@ -63,6 +65,7 @@ export default function CreateForm({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [accepted, setAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,10 +80,19 @@ export default function CreateForm({
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!accepted) {
+      setError("Debés aceptar el tratamiento de datos para crear tu cuenta.");
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      await register({ name: name.trim(), email: email.trim(), password });
+      await register({
+        name: name.trim(),
+        email: email.trim(),
+        password,
+        terms_accepted: true,
+      });
       // Recarga completa: la UI monta de cero con la sesión nueva.
       window.location.href = returnTo;
     } catch (err) {
@@ -122,16 +134,6 @@ export default function CreateForm({
 
           {/* Card */}
           <div className="rounded-2.5xl border border-brand-navy/6 bg-white p-8 shadow-card dark:border-white/6 dark:bg-brand-navy-800">
-            {/* Google */}
-            <GoogleButton returnTo={returnTo} />
-
-            {/* Divider */}
-            <div className="my-6 flex items-center gap-3">
-              <div className="flex-1 border-t border-gray-200 dark:border-white/8" />
-              <span className="text-xs font-medium text-gray-400">o registrate con correo</span>
-              <div className="flex-1 border-t border-gray-200 dark:border-white/8" />
-            </div>
-
             {/* Error */}
             {error && (
               <div className="animate-notice-in mb-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800/40 dark:bg-red-950/20">
@@ -210,11 +212,49 @@ export default function CreateForm({
                 <PasswordStrength password={password} />
               </div>
 
+              {/* Consent (obligatorio) */}
+              <label
+                htmlFor="register-terms"
+                className="flex cursor-pointer items-start gap-2.5"
+              >
+                <input
+                  id="register-terms"
+                  name="terms_accepted"
+                  type="checkbox"
+                  checked={accepted}
+                  onChange={(e) => setAccepted(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 rounded border-gray-300 accent-brand-gold dark:border-white/20"
+                />
+                <span className="text-xs leading-relaxed text-gray-500 dark:text-gray-400">
+                  Acepto el tratamiento de mis datos personales conforme a los{" "}
+                  <a
+                    href="/terminos"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="underline hover:text-brand-gold"
+                  >
+                    Términos de uso
+                  </a>{" "}
+                  y la{" "}
+                  <a
+                    href="/privacidad"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="underline hover:text-brand-gold"
+                  >
+                    Política de privacidad
+                  </a>
+                  .
+                </span>
+              </label>
+
               {/* Submit */}
               <button
                 type="submit"
-                disabled={loading}
-                className="btn-primary w-full justify-center py-3 text-sm"
+                disabled={loading || !accepted}
+                className="btn-primary w-full justify-center py-3 text-sm disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {loading ? (
                   <span className="flex items-center gap-2">
@@ -226,14 +266,19 @@ export default function CreateForm({
                   </span>
                 ) : "Crear mi cuenta gratis"}
               </button>
-
-              <p className="text-center text-xs text-gray-400 dark:text-gray-500">
-                Al crear tu cuenta aceptás nuestros{" "}
-                <a href="#" className="underline hover:text-brand-gold">Términos de uso</a>
-                {" "}y la{" "}
-                <a href="#" className="underline hover:text-brand-gold">Política de privacidad</a>.
-              </p>
             </form>
+
+            {/* Google — método alternativo al pie */}
+            {googleEnabled && (
+              <>
+                <div className="my-6 flex items-center gap-3">
+                  <div className="flex-1 border-t border-gray-200 dark:border-white/8" />
+                  <span className="text-xs font-medium text-gray-400">o registrate con Google</span>
+                  <div className="flex-1 border-t border-gray-200 dark:border-white/8" />
+                </div>
+                <GoogleButton returnTo={returnTo} />
+              </>
+            )}
           </div>
         </div>
       </div>

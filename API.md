@@ -981,6 +981,133 @@ no puede desactivarse a sí mismo un SUPER_ADMIN.
 
 ---
 
+## Analytics Service (puerto 3011)
+
+Agregados diarios de revenue calculados por un ETL sobre réplicas de **solo
+lectura** de `booking_db` y `property_db`. Todos los endpoints exigen Bearer con
+rol `MANAGER` o `SUPER_ADMIN` (salvo `/health`).
+
+Los rangos son `[from, to)` con `to` **exclusivo** (igual que check-out) y las
+fechas `YYYY-MM-DD`. Las respuestas usan el sobre `{ "data": ... }` y los montos
+van en COP. `occupancy` es una fracción 0–1 con 4 decimales.
+
+### Health Check
+
+```bash
+curl http://localhost:3011/health
+```
+
+**Response (200):**
+```json
+{ "status": "ok" }
+```
+
+### Ocupación diaria
+
+```
+GET /v1/occupancy?hotel_id=<uuid>&from=2026-09-22&to=2026-10-24
+```
+
+**Response (200):**
+```json
+{
+  "data": [
+    {
+      "hotel_id": "11111111-1111-4111-8111-111111111111",
+      "date": "2026-10-22",
+      "available_nights": 24,
+      "occupied_nights": 2,
+      "occupancy": 0.0833
+    }
+  ]
+}
+```
+
+`available_nights` = habitaciones físicas activas del hotel.
+`occupied_nights` = reservas `confirmed` que cubren la noche.
+
+### ADR y RevPAR diarios
+
+```
+GET /v1/adr?hotel_id=<uuid>&from=2026-09-22&to=2026-10-24
+GET /v1/revpar?hotel_id=<uuid>&from=2026-09-22&to=2026-10-24
+```
+
+**Response (200):**
+```json
+{ "data": [ { "hotel_id": "...", "date": "2026-10-22", "adr": 8500 } ] }
+```
+```json
+{ "data": [ { "hotel_id": "...", "date": "2026-10-22", "revpar": 708.33 } ] }
+```
+
+- ADR = ingreso prorrateado por noche / noches ocupadas.
+- RevPAR = ingreso prorrateado por noche / noches disponibles.
+
+### Previsión
+
+```
+GET /v1/forecast?hotel_id=<uuid>&from=&to=&horizon=14
+```
+
+`horizon` va de 1 a 90 noches (default 14). Es una media móvil de la historia
+del rango: referencia operativa, no un modelo estacional.
+
+**Response (200):**
+```json
+{
+  "data": [
+    { "hotel_id": "...", "date": "2026-10-24", "occupancy_expected": 0.0833,
+      "adr_expected": 8500, "revpar_expected": 708.33 }
+  ]
+}
+```
+
+### Dashboard
+
+Una sola llamada para el panel `/admin/analytics`:
+
+```
+GET /v1/dashboard/:hotelId?from=2026-09-22&to=2026-10-24
+```
+
+**Response (200):**
+```json
+{
+  "data": {
+    "hotel_id": "11111111-1111-4111-8111-111111111111",
+    "range": { "from": "2026-09-22", "to": "2026-10-24" },
+    "occupancy_avg": 0.0417,
+    "adr_avg": 8500,
+    "revpar_avg": 354.17,
+    "forecast": [
+      { "hotel_id": "...", "date": "2026-10-24", "occupancy_expected": 0.0417,
+        "adr_expected": 8500, "revpar_expected": 354.45 }
+    ]
+  }
+}
+```
+
+Sin filas en el rango las series devuelven `data: []` y el dashboard responde
+con promedios en `0` (no es 404).
+
+### Errores
+
+Además del formato global, este servicio devuelve `message` y `statusCode`:
+
+```json
+{ "error": "ValidationError", "message": "El hotel_id debe ser un UUID válido", "statusCode": 400 }
+```
+
+| HTTP Code | Significado |
+|-----------|-------------|
+| 400 | Query/params inválidos (Zod): UUID o fecha mal formados |
+| 401 | Falta el Bearer o el token es inválido/expirado |
+| 403 | Rol distinto de `MANAGER`/`SUPER_ADMIN` |
+| 500 | Error interno (fallo de réplica o ETL) |
+
+---
+
 ## Errores Comunes
 
 | HTTP Code | Significado | Ejemplo |

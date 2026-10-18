@@ -6,8 +6,10 @@ import "./globals.css";
 import SiteFooter from "@/components/SiteFooter";
 import RevealObserver from "@/components/ui/RevealObserver";
 import ThemeProvider from "@/components/ThemeProvider";
+import { CurrencyProvider } from "@/components/CurrencyProvider";
 import NavbarClient from "@/components/NavbarClient";
 import LoginToast from "@/components/LoginToast";
+import ConsentGate from "@/components/ConsentGate";
 import WarmUp from "@/components/WarmUp";
 import { ToastProvider } from "@/components/Toast";
 
@@ -41,6 +43,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         </a>
 
         <ThemeProvider>
+          <CurrencyProvider>
           <ToastProvider>
           <NavbarClient />
 
@@ -54,8 +57,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <LoginToast />
           </Suspense>
 
+          <ConsentGate />
+
           <SiteFooter />
           </ToastProvider>
+          </CurrencyProvider>
         </ThemeProvider>
       </body>
     </html>

@@ -39,14 +39,17 @@ function AuthAmbient({ mode }: { mode: "login" | "register" }) {
 /* ─── Login form ────────────────────────────────────────────── */
 export default function EnterForm({
   params,
+  googleEnabled,
 }: {
   params: Promise<{ returnTo?: string; error?: string }>;
+  googleEnabled: boolean;
 }) {
   const router = useRouter();
   const [returnTo, setReturnTo] = useState("/mis-reservas");
   const [oauthError, setOauthError] = useState<string | null>(null);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [remember, setRemember] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,7 +73,7 @@ export default function EnterForm({
     setLoading(true);
     setError(null);
     try {
-      const profile = await login(email.trim(), password);
+      const profile = await login(email.trim(), password, remember);
       // Recarga completa (no navegación cliente): el navbar y el resto de
       // la UI montan de cero y ven la sesión nueva. El toast lo muestra
       // LoginToast desde el marcador ?login=email.
@@ -125,16 +128,6 @@ export default function EnterForm({
 
           {/* Card */}
           <div className="rounded-2.5xl border border-brand-navy/6 bg-white p-8 shadow-card dark:border-white/6 dark:bg-brand-navy-800">
-            {/* Google */}
-            <GoogleButton returnTo={returnTo} />
-
-            {/* Divider */}
-            <div className="my-6 flex items-center gap-3">
-              <div className="flex-1 border-t border-gray-200 dark:border-white/8" />
-              <span className="text-xs font-medium text-gray-400">o continuá con tu correo</span>
-              <div className="flex-1 border-t border-gray-200 dark:border-white/8" />
-            </div>
-
             {/* Error */}
             {error && (
               <div className="animate-notice-in mb-5 flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 p-4 dark:border-red-800/40 dark:bg-red-950/20">
@@ -200,6 +193,27 @@ export default function EnterForm({
                 </div>
               </div>
 
+              {/* Remember */}
+              <label
+                htmlFor="account-remember"
+                className="flex cursor-pointer items-center gap-2.5"
+              >
+                <input
+                  id="account-remember"
+                  name="remember"
+                  type="checkbox"
+                  checked={remember}
+                  onChange={(e) => setRemember(e.target.checked)}
+                  className="h-4 w-4 rounded border-gray-300 accent-brand-gold dark:border-white/20"
+                />
+                <span className="text-sm text-gray-600 dark:text-gray-300">
+                  Recordarme
+                </span>
+                <span className="text-xs text-gray-400 dark:text-gray-500">
+                  Mantener la sesión por 7 días
+                </span>
+              </label>
+
               {/* Submit */}
               <button
                 type="submit"
@@ -217,6 +231,18 @@ export default function EnterForm({
                 ) : "Entrar a mi cuenta"}
               </button>
             </form>
+
+            {/* Google — método alternativo al pie */}
+            {googleEnabled && (
+              <>
+                <div className="my-6 flex items-center gap-3">
+                  <div className="flex-1 border-t border-gray-200 dark:border-white/8" />
+                  <span className="text-xs font-medium text-gray-400">o ingresá con Google</span>
+                  <div className="flex-1 border-t border-gray-200 dark:border-white/8" />
+                </div>
+                <GoogleButton returnTo={returnTo} />
+              </>
+            )}
           </div>
         </div>
       </div>

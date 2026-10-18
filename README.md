@@ -112,7 +112,7 @@ docker compose down
 | Herramienta | URL | Credenciales | Qué muestra |
 |-------------|-----|--------------|-------------|
 | RabbitMQ Management | `http://localhost:15672` | `guest` / `guest` | Exchange `hotelsync.events`, colas `front-desk.arrivals`, `housekeeping.tasks`, `billing.folio` y `rate-availability.physical-rooms` |
-| Adminer (6 bases) | `http://localhost:8080` | Sistema `PostgreSQL`, usuario `hotelsync`, clave `hotelsync_dev` | Tablas `bookings`, `event_outbox`, `arrivals`, `cleaning_tasks`, `folios`, `invoices`, etc. |
+| Adminer (bases del compose) | `http://localhost:8080` | Sistema `PostgreSQL`, usuario `hotelsync`, clave `hotelsync_dev` | Tablas `bookings`, `event_outbox`, `arrivals`, `cleaning_tasks`, `folios`, `invoices`, `occupancy_daily`, etc. |
 
 Servidores en Adminer (red interna de compose, puerto `5432`):
 
@@ -124,6 +124,7 @@ Servidores en Adminer (red interna de compose, puerto `5432`):
 | Rate & Availability | `rate-availability-db` | `rate_availability_db` |
 | Housekeeping | `housekeeping-db` | `housekeeping_db` |
 | Billing | `billing-db` | `billing_db` |
+| Analytics | `analytics-db` | `analytics_db` |
 
 > Alternativa sin compose: `npx prisma studio` dentro de cada servicio (usa su `.env`).
 > Si Studio falla en Windows con `Unable to get DMMF ... spawn UNKNOWN`, es instalación corrupta
@@ -235,6 +236,20 @@ consumidores). Sin ese secreto los servicios que verifican no arrancan; sin
 `RABBITMQ_URL` el resto opera igual. El seed crea el `SUPER_ADMIN` inicial
 desde `BOOTSTRAP_ADMIN_EMAIL`/`BOOTSTRAP_ADMIN_PASSWORD`.
 
+### Analytics Service (puerto 3011)
+
+| Método | Ruta | Descripción |
+|--------|------|-------------|
+| GET | `/health` | Health check (sin auth) |
+| GET | `/v1/occupancy?hotel_id=&from=&to=` | Ocupación diaria (`to` exclusivo) |
+| GET | `/v1/adr?hotel_id=&from=&to=` | ADR diario |
+| GET | `/v1/revpar?hotel_id=&from=&to=` | RevPAR diario |
+| GET | `/v1/forecast?hotel_id=&from=&to=&horizon=14` | Previsión (media móvil, `horizon` 1–90) |
+| GET | `/v1/dashboard/:hotelId?from=&to=` | KPIs promedio + previsión en una llamada |
+
+Requiere Bearer con rol `MANAGER` o `SUPER_ADMIN`. Las series y el dashboard
+responden `{ "data": ... }` con montos en COP.
+
 ## Testing
 
 ```bash
@@ -308,6 +323,17 @@ una unidad. R&A consume la cola `rate-availability.physical-rooms`, agrega una
 unidad disponible por fecha durante 365 días desde `available_from` y limpia
 las claves de Redis; los eventos repetidos no vuelven a sumar inventario.
 
+Analytics agrega noches desde `booking_db` y capacidad desde `property_db` con
+un ETL por hotel-día (upsert idempotente por `(hotel_id, date)`) y publica
+`metrics.updated` por outbox. Corre al arrancar (`ETL_START_DELAY_MS`, 30 s) y
+cada `ETL_INTERVAL_MS` (6 h). Corrida manual con rango (`to` exclusivo):
+
+```bash
+docker exec hotelsync-analytics-service-1 node dist/jobs/etl.js --from=2026-09-22 --to=2026-10-24
+```
+
+El dashboard de revenue vive en `/admin/analytics` (rol `MANAGER` o `SUPER_ADMIN`).
+
 ### Modelo de Datos
 
 #### Property Service
@@ -361,6 +387,14 @@ las claves de Redis; los eventos repetidos no vuelven a sumar inventario.
 | `charges` | charge_id (PK), folio_id (FK), concept, amount, category, added_at | @@index(folio_id) |
 | `invoices` | invoice_id (PK), folio_id (UNIQUE), invoice_number (UNIQUE), subtotal, tax_rate, tax_amount, total, currency, country | Una factura por folio |
 | `event_outbox` | event_id (PK), event_type, payload (JSONB), status, attempts, created_at, sent_at | @@index(status, created_at) |
+
+#### Analytics Service
+
+| Tabla | Campos principales | Constraints |
+|-------|-------------------|-------------|
+| `occupancy_daily` | hotel_id, date, available_nights, occupied_nights, occupancy (0–1, 4 decimales) | PK(hotel_id, date) |
+| `kpi_by_property` | hotel_id, date, adr, revpar, rooms_sold, revenue | PK(hotel_id, date) |
+| `event_outbox` | event_id (PK), event_type (`metrics.updated`), payload (JSONB), status, attempts, created_at, sent_at | Índice por estado y fecha |
 
 ### Reglas de Negocio
 
