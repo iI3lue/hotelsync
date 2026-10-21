@@ -1,8 +1,8 @@
 import {
-  checkOutIsoDate,
-  isPaidBooking,
+  canCancelBooking,
   isVisibleMyBooking,
   localIsoDate,
+  myBookingBadgeKey,
   visibleMyBookings,
 } from "@/lib/my-bookings";
 
@@ -13,43 +13,37 @@ describe("localIsoDate", () => {
   });
 });
 
-describe("checkOutIsoDate", () => {
-  it("acepta el datetime ISO que devuelve la API", () => {
-    expect(checkOutIsoDate({ check_out: "2026-10-17T00:00:00.000Z" })).toBe(
-      "2026-10-17"
-    );
-  });
-
-  it("devuelve null cuando no hay fecha de salida", () => {
-    expect(checkOutIsoDate({ check_out: null as unknown as string })).toBe(null);
-  });
-});
-
 describe("isVisibleMyBooking", () => {
   it("sigue visible el día de check-out", () => {
-    expect(isVisibleMyBooking({ check_out: "2026-10-17" }, "2026-10-17")).toBe(
-      true
-    );
+    expect(
+      isVisibleMyBooking({ check_out: "2026-10-17" }, "2026-10-17")
+    ).toBe(true);
   });
 
   it("desaparece al día siguiente del check-out", () => {
-    expect(isVisibleMyBooking({ check_out: "2026-10-17" }, "2026-10-18")).toBe(
-      false
-    );
+    expect(
+      isVisibleMyBooking({ check_out: "2026-10-17" }, "2026-10-18")
+    ).toBe(false);
   });
 
   it("una reserva futura siempre es visible", () => {
-    expect(isVisibleMyBooking({ check_out: "2026-12-01" }, "2026-10-17")).toBe(
-      true
-    );
+    expect(
+      isVisibleMyBooking({ check_out: "2026-12-01" }, "2026-10-17")
+    ).toBe(true);
   });
 
   it("acepta el datetime ISO que devuelve la API", () => {
     expect(
-      isVisibleMyBooking({ check_out: "2026-10-17T00:00:00.000Z" }, "2026-10-17")
+      isVisibleMyBooking(
+        { check_out: "2026-10-17T00:00:00.000Z" },
+        "2026-10-17"
+      )
     ).toBe(true);
     expect(
-      isVisibleMyBooking({ check_out: "2026-10-16T00:00:00.000Z" }, "2026-10-17")
+      isVisibleMyBooking(
+        { check_out: "2026-10-16T00:00:00.000Z" },
+        "2026-10-17"
+      )
     ).toBe(false);
   });
 
@@ -57,6 +51,56 @@ describe("isVisibleMyBooking", () => {
     expect(
       isVisibleMyBooking(
         { check_out: "2026-12-01", status: "cancelled" },
+        "2026-10-17"
+      )
+    ).toBe(false);
+  });
+});
+
+describe("canCancelBooking", () => {
+  const future = {
+    status: "pending" as const,
+    payment_status: "PENDING" as const,
+    booked_by_user_id: "user-1",
+    check_in: "2026-10-18T00:00:00.000Z",
+  };
+
+  it("el dueño puede cancelar antes del check-in", () => {
+    expect(canCancelBooking(future, "user-1", "2026-10-17")).toBe(true);
+    expect(
+      canCancelBooking(
+        { ...future, status: "confirmed", payment_status: "PAID" },
+        "user-1",
+        "2026-10-17"
+      )
+    ).toBe(true);
+  });
+
+  it("permite cancelar el mismo día del check-in", () => {
+    expect(canCancelBooking(future, "user-1", "2026-10-18")).toBe(true);
+  });
+
+  it("no permite cancelar después del check-in", () => {
+    expect(canCancelBooking(future, "user-1", "2026-10-19")).toBe(false);
+  });
+
+  it("exige ser el dueño exacto y tener sesión", () => {
+    expect(canCancelBooking(future, "user-2", "2026-10-17")).toBe(false);
+    expect(canCancelBooking(future, null, "2026-10-17")).toBe(false);
+    expect(
+      canCancelBooking(
+        { ...future, booked_by_user_id: null },
+        "user-1",
+        "2026-10-17"
+      )
+    ).toBe(false);
+  });
+
+  it("excluye reservas canceladas o de otro estado", () => {
+    expect(
+      canCancelBooking(
+        { ...future, status: "cancelled" },
+        "user-1",
         "2026-10-17"
       )
     ).toBe(false);
@@ -78,9 +122,28 @@ describe("visibleMyBookings", () => {
   });
 });
 
-describe("isPaidBooking", () => {
-  it("solo PAID cuenta como pagada", () => {
-    expect(isPaidBooking({ payment_status: "PAID" })).toBe(true);
-    expect(isPaidBooking({ payment_status: "PENDING" })).toBe(false);
+describe("myBookingBadgeKey", () => {
+  it("cancelada gana sobre pagada", () => {
+    expect(
+      myBookingBadgeKey({ status: "cancelled", payment_status: "PAID" })
+    ).toBe("cancelled");
+  });
+
+  it("pagada gana sobre confirmed y pending", () => {
+    expect(
+      myBookingBadgeKey({ status: "confirmed", payment_status: "PAID" })
+    ).toBe("paid");
+    expect(
+      myBookingBadgeKey({ status: "pending", payment_status: "PAID" })
+    ).toBe("paid");
+  });
+
+  it("sin pago conserva el estado de la reserva", () => {
+    expect(
+      myBookingBadgeKey({ status: "confirmed", payment_status: "PENDING" })
+    ).toBe("confirmed");
+    expect(
+      myBookingBadgeKey({ status: "pending", payment_status: "PENDING" })
+    ).toBe("pending");
   });
 });

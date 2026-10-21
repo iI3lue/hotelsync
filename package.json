@@ -44,7 +44,9 @@
     "seed:billing": "npm run seed --workspace=services/billing-service",
     "seed:channel": "npm run seed --workspace=services/channel-manager-service",
     "seed:user": "npm run seed --workspace=services/user-service",
-    "seed:loyalty": "npm run seed --workspace=services/loyalty-service"
+    "seed:loyalty": "npm run seed --workspace=services/loyalty-service",
+    "seed:payment": "npm run seed --workspace=services/payment-service",
+    "seed:analytics": "npm run seed --workspace=services/analytics-service"
   },
   "engines": {
     "node": ">=20.0.0"

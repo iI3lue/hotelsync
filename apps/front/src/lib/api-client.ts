@@ -1,6 +1,12 @@
 ﻿"use client";
 
-import type { Availability, Hotel, PhysicalRoom, RoomType } from "./api";
+import type {
+  Availability,
+  Hotel,
+  PhysicalRoom,
+  RoomAssignment,
+  RoomType,
+} from "./api";
 import { authHeader } from "./auth-client";
 import {
   backoffDelay,
@@ -196,6 +202,16 @@ export async function updateRoomType(
 
 export async function fetchMyBookings(): Promise<import("./api").Booking[]> {
   return clientFetch<import("./api").Booking[]>("/api/booking/bookings/me");
+}
+
+/** Cancela una reserva propia (el reembolso, si estaba paga, es simulado). */
+export async function cancelBooking(
+  bookingId: string
+): Promise<import("./api").Booking> {
+  return clientPost<import("./api").Booking>(
+    `/api/booking/bookings/${encodeURIComponent(bookingId)}/cancel`,
+    {}
+  );
 }
 
 export async function fetchPhysicalRooms(
@@ -535,6 +551,101 @@ export async function fetchPaymentStatusForStaff(bookingId: string): Promise<Pay
     `/api/payments/admin/payments/${encodeURIComponent(bookingId)}`
   );
   return res.data;
+}
+// ÔöÇÔöÇÔöÇ Compatibilidad solo-split (InvoicePanel, HousekeepingStatus) ÔöÇÔöÇÔöÇ
+// Exports que el monorepo perdi├│; se preservan ac├í seg├║n AGENTS.md.
+
+export async function fetchHotelByIdClient(hotelId: string): Promise<Hotel> {
+  return clientFetch<Hotel>(
+    `/api/property/hotels/${encodeURIComponent(hotelId)}`
+  );
+}
+
+/** Asignaci├│n de habitaci├│n de una reserva (404 si no tiene check-in). */
+export async function fetchAssignment(
+  bookingId: string
+): Promise<RoomAssignment> {
+  return clientFetch<RoomAssignment>(
+    `/api/front-desk/check-in/${encodeURIComponent(bookingId)}`
+  );
+}
+
+export interface BillingCharge {
+  charge_id: string;
+  concept: string;
+  amount: number | string;
+  category: string;
+  added_at: string;
+}
+
+export interface BillingInvoice {
+  invoice_id: string;
+  invoice_number: string;
+  subtotal: number | string;
+  tax_rate: number | string;
+  tax_amount: number | string;
+  total: number | string;
+  currency: string;
+  country: string;
+  issued_at: string;
+}
+
+export interface BillingFolio {
+  folio_id: string;
+  booking_id: string;
+  hotel_id: string;
+  guest_id: string;
+  currency: string;
+  total: number | string;
+  status: string;
+  charges: BillingCharge[];
+  invoice: BillingInvoice | null;
+}
+
+/** Folio de una reserva con cargos y factura (si ya cerr├│). */
+export async function fetchFolioByBooking(
+  bookingId: string
+): Promise<BillingFolio> {
+  return clientFetch<BillingFolio>(
+    `/api/billing/folios/by-booking/${encodeURIComponent(bookingId)}`
+  );
+}
+
+export interface HousekeepingRoomStatus {
+  room_status_id: string;
+  hotel_id: string;
+  room_number: string;
+  status: string;
+  assigned_to: string | null;
+  updated_at: string;
+}
+
+export interface HousekeepingTask {
+  history_id: string;
+  booking_id: string;
+  hotel_id: string;
+  room_number: string;
+  status: string;
+  assigned_to: string | null;
+  created_at: string;
+}
+
+/** Estado de habitaciones f├¡sicas de un hotel (HK-1). */
+export async function fetchRoomStatus(
+  hotelId: string
+): Promise<HousekeepingRoomStatus[]> {
+  return clientFetch<HousekeepingRoomStatus[]>(
+    `/api/housekeeping/rooms/status?hotel_id=${encodeURIComponent(hotelId)}`
+  );
+}
+
+/** Tareas de limpieza de un hotel (HK-2, HK-3). */
+export async function fetchCleaningTasks(
+  hotelId: string
+): Promise<HousekeepingTask[]> {
+  return clientFetch<HousekeepingTask[]>(
+    `/api/housekeeping/tasks?hotel_id=${encodeURIComponent(hotelId)}`
+  );
 }
 
 export interface AnalyticsOccupancyPoint {

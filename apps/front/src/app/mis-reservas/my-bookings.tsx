@@ -6,12 +6,18 @@ import type { Booking } from "@/lib/api";
 import { fetchMyBookings } from "@/lib/api-client";
 import { me } from "@/lib/auth-client";
 import { formatDate, stayNights } from "@/lib/format";
-import { isPaidBooking, isVisibleMyBooking } from "@/lib/my-bookings";
+import {
+  canCancelBooking,
+  isPaidBooking,
+  isVisibleMyBooking,
+  myBookingBadgeKey,
+} from "@/lib/my-bookings";
 import Money from "@/components/Money";
 import { canPayOnline } from "@/lib/payment-eligibility";
 import EmptyState from "@/components/EmptyState";
-import PaymentBadge from "@/components/payments/PaymentBadge";
 import BookingDetailsModal from "@/components/payments/BookingDetailsModal";
+import CancelBookingModal from "@/components/payments/CancelBookingModal";
+import PaymentBadge from "@/components/payments/PaymentBadge";
 import PayOnlineModal from "@/components/payments/PayOnlineModal";
 
 const STATUS_BADGES: Record<string, { label: string; class: string }> = {
@@ -31,6 +37,10 @@ const STATUS_BADGES: Record<string, { label: string; class: string }> = {
     label: "Completada",
     class: "border-slate-200 bg-slate-100 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200",
   },
+  paid: {
+    label: "Pagada",
+    class: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800/60 dark:bg-emerald-950/40 dark:text-emerald-300",
+  },
 };
 
 export default function MyBookings() {
@@ -39,6 +49,8 @@ export default function MyBookings() {
   const [userId, setUserId] = useState<string | null>(null);
   const [paying, setPaying] = useState<Booking | null>(null);
   const [details, setDetails] = useState<Booking | null>(null);
+  const [cancelling, setCancelling] = useState<Booking | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const paidIds = useRef<Set<string>>(new Set());
 
   function applyLocalChanges(list: Booking[]): Booking[] {
@@ -83,8 +95,7 @@ export default function MyBookings() {
           )
         : prev
     );
-    // El modal queda abierto para mostrar la confirmación y los puntos de
-    // fidelización; se cierra con su botón "Entendido" (onClose).
+    setPaying(null);
     // La confirmación llega por evento (`payment.completed`); reconciliamos luego
     // sin perder el estado pagado si el evento todavía no llegó.
     window.setTimeout(() => {
@@ -92,6 +103,16 @@ export default function MyBookings() {
         .then((list) => setBookings(applyLocalChanges(list)))
         .catch(() => {});
     }, 2500);
+  }
+
+  function handleCancelled(bookingId: string) {
+    setBookings((prev) =>
+      prev ? prev.filter((b) => b.booking_id !== bookingId) : prev
+    );
+    setCancelling(null);
+    setNotice(
+      "Reserva cancelada. Si estaba paga, el reembolso es simulado y queda registrado en la reserva."
+    );
   }
 
   if (error) {
@@ -123,25 +144,38 @@ export default function MyBookings() {
 
   if (bookings.length === 0) {
     return (
-      <EmptyState
-        title="No tenés reservas para mostrar"
-        description="Cuando reserves una estancia la vas a ver acá, con su código, fechas y estado, hasta el día de salida."
-        actionHref="/buscar"
-        actionLabel="Explorar hoteles"
-      />
+      <>
+        {notice && (
+          <p role="status" className="mb-6 border-l-2 border-emerald-500 pl-3 text-[0.9rem] text-emerald-800 dark:text-emerald-300">
+            {notice}
+          </p>
+        )}
+        <EmptyState
+          title="No tenés reservas para mostrar"
+          description="Cuando reserves una estancia la vas a ver acá, con su código, fechas y estado, hasta el día de salida."
+          actionHref="/buscar"
+          actionLabel="Explorar hoteles"
+        />
+      </>
     );
   }
 
   return (
     <>
+      {notice && (
+        <p role="status" className="mb-6 border-l-2 border-emerald-500 pl-3 text-[0.9rem] text-emerald-800 dark:text-emerald-300">
+          {notice}
+        </p>
+      )}
       <ul className="divide-y divide-brand-navy/10 border-y border-brand-navy/10 dark:divide-white/10 dark:border-white/10">
         {bookings.map((b, i) => {
-          const badge = STATUS_BADGES[b.status.toLowerCase()] ?? {
+          const paid = isPaidBooking(b);
+          const cancellable = canCancelBooking(b, userId);
+          const badge = STATUS_BADGES[myBookingBadgeKey(b)] ?? {
             label: b.status,
             class: "border-slate-200 bg-slate-100 text-slate-700",
           };
-        const nights = stayNights(b.check_in, b.check_out).length;
-        const paid = isPaidBooking(b);
+          const nights = stayNights(b.check_in, b.check_out).length;
 
           return (
             <li
@@ -155,7 +189,7 @@ export default function MyBookings() {
                   <span className={`inline-flex items-center rounded-full border px-2.5 py-0.5 text-[0.6875rem] font-medium uppercase tracking-[0.12em] ${badge.class}`}>
                     {badge.label}
                   </span>
-                  {b.status !== "cancelled" && (
+                  {!paid && b.status !== "cancelled" && (
                     <PaymentBadge status={b.payment_status} preference={b.payment_method_preference} />
                   )}
                   <span className="font-mono text-[0.75rem] uppercase tracking-wider text-brand-navy/45 dark:text-white/40">
@@ -191,13 +225,22 @@ export default function MyBookings() {
                       Ver detalles
                     </button>
                   )}
-                  {canPayOnline(b, userId) && (
+                  {!paid && canPayOnline(b, userId) && (
                     <button
                       type="button"
                       onClick={() => setPaying(b)}
                       className="btn-primary w-full sm:w-auto"
                     >
                       Pagar ahora
+                    </button>
+                  )}
+                  {cancellable && (
+                    <button
+                      type="button"
+                      onClick={() => setCancelling(b)}
+                      className="btn-outline w-full text-red-700 dark:text-red-300 sm:w-auto"
+                    >
+                      Cancelar reserva
                     </button>
                   )}
                 </div>
@@ -219,6 +262,14 @@ export default function MyBookings() {
           booking={paying}
           onClose={() => setPaying(null)}
           onPaid={() => handlePaid(paying.booking_id)}
+        />
+      )}
+
+      {cancelling && (
+        <CancelBookingModal
+          booking={cancelling}
+          onClose={() => setCancelling(null)}
+          onCancelled={handleCancelled}
         />
       )}
     </>
