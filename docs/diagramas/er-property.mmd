@@ -1,0 +1,50 @@
+%% Generado por docs/tools/er_from_prisma.py — no editar a mano.
+%% Fuente: services/property-service/prisma/schema.prisma
+erDiagram
+  Hotel {
+    string hotel_id PK
+    string name
+    string address
+    string city
+    string country
+    string timezone
+    string image_url
+  }
+  RoomType {
+    string room_type_id PK
+    string hotel_id FK
+    string name
+    int capacity
+    decimal base_rate
+    string_list amenities
+    string image_url
+  }
+  CancellationPolicy {
+    string policy_id PK
+    string hotel_id FK
+    string name
+    string description
+  }
+  PhysicalRoom {
+    string physical_room_id PK
+    string hotel_id FK
+    string room_type_id FK
+    string room_number
+    timestamp available_from
+    boolean is_active
+    timestamp created_at
+  }
+  EventOutbox {
+    string event_id PK
+    string event_type
+    json payload
+    string status
+    int attempts
+    timestamp created_at
+    timestamp sent_at
+  }
+
+  Hotel ||--o{ RoomType : "hotel_id"
+  Hotel ||--o{ CancellationPolicy : "hotel_id"
+  Hotel ||--o{ PhysicalRoom : "hotel_id"
+  RoomType ||--o{ PhysicalRoom : "room_type_id"

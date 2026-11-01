@@ -1,0 +1,54 @@
+%% Generado por docs/tools/er_from_prisma.py — no editar a mano.
+%% Fuente: services/user-service/prisma/schema.prisma
+erDiagram
+  User {
+    string user_id PK
+    string email UK
+    string password_hash
+    string name
+    string phone
+    string picture_url
+    string status
+    boolean email_verified
+    timestamp terms_accepted_at
+    timestamp created_at
+    timestamp updated_at
+  }
+  PasswordResetToken {
+    string token_id PK
+    string user_id FK
+    string token_hash UK
+    timestamp expires_at
+    timestamp used_at
+    timestamp created_at
+  }
+  RoleAssignment {
+    string assignment_id PK
+    string user_id FK
+    string role
+    string hotel_id
+    boolean is_active
+    timestamp created_at
+  }
+  ExternalIdentity {
+    string identity_id PK
+    string user_id FK
+    string provider
+    string provider_sub
+    string email
+    timestamp created_at
+  }
+  RefreshSession {
+    string session_id PK
+    string user_id FK
+    string token_hash UK
+    timestamp expires_at
+    timestamp revoked_at
+    string replaced_by
+    timestamp created_at
+  }
+
+  User ||--o{ PasswordResetToken : "user_id"
+  User ||--o{ RoleAssignment : "user_id"
+  User ||--o{ ExternalIdentity : "user_id"
+  User ||--o{ RefreshSession : "user_id"

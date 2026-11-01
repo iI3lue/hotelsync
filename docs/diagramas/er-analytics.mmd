@@ -1,0 +1,27 @@
+%% Generado por docs/tools/er_from_prisma.py — no editar a mano.
+%% Fuente: services/analytics-service/prisma/schema.prisma
+erDiagram
+  OccupancyDaily {
+    string hotel_id
+    timestamp date
+    int available_nights
+    int occupied_nights
+    decimal occupancy
+  }
+  KpiByProperty {
+    string hotel_id
+    timestamp date
+    decimal adr
+    decimal revpar
+    int rooms_sold
+    decimal revenue
+  }
+  EventOutbox {
+    string event_id PK
+    string event_type
+    json payload
+    string status
+    int attempts
+    timestamp created_at
+    timestamp sent_at
+  }

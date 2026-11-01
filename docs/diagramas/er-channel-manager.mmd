@@ -1,0 +1,45 @@
+%% Generado por docs/tools/er_from_prisma.py — no editar a mano.
+%% Fuente: services/channel-manager-service/prisma/schema.prisma
+erDiagram
+  Channel {
+    string channel_id PK
+    string slug UK
+    string name
+    string provider_key_hash
+    boolean is_active
+    timestamp created_at
+    timestamp updated_at
+  }
+  ExternalReservation {
+    string external_reservation_id PK
+    string channel_id FK
+    string external_id
+    string booking_id UK
+    string status
+    timestamp created_at
+    timestamp updated_at
+  }
+  ChannelInventory {
+    string channel_id FK
+    string room_type_id
+    timestamp date
+    int available_count
+    int blocked_count
+    timestamp updated_at
+  }
+  ChannelRate {
+    string projection_key PK
+    string channel_id FK
+    string room_type_id
+    string kind
+    timestamp start_date
+    timestamp end_date
+    decimal price
+    decimal multiplier
+    int min_stay
+    timestamp updated_at
+  }
+
+  Channel ||--o{ ExternalReservation : "channel_id"
+  Channel ||--o{ ChannelInventory : "channel_id"
+  Channel ||--o{ ChannelRate : "channel_id"

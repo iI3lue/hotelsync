@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { motion, useMotionValue, useReducedMotion, useSpring, AnimatePresence } from "framer-motion";
+import { motion, useMotionValue, useSpring, AnimatePresence } from "framer-motion";
 import { useRef, useState } from "react";
 import type { Destination } from "@/lib/destinations";
 import Arrow from "@/components/ui/Arrow";
@@ -13,7 +13,6 @@ import Arrow from "@/components/ui/Arrow";
  */
 export default function DestinationIndex({ destinations }: { destinations: Destination[] }) {
   const ref = useRef<HTMLDivElement>(null);
-  const reduce = useReducedMotion();
   const [active, setActive] = useState<number | null>(null);
   const x = useMotionValue(0);
   const y = useMotionValue(0);
@@ -71,31 +70,29 @@ export default function DestinationIndex({ destinations }: { destinations: Desti
         </div>
       ))}
 
-      {/* Foto flotante (solo puntero fino) */}
-      {!reduce && (
-        <motion.div
-          aria-hidden="true"
-          style={{ x: sx, y: sy }}
-          className="pointer-events-none absolute left-0 top-0 z-10 hidden [@media(hover:hover)]:lg:block"
-        >
-          <AnimatePresence>
-            {active !== null && (
-              <motion.div
-                key={active}
-                initial={{ opacity: 0, scale: 0.92, rotate: -2 }}
-                animate={{ opacity: 1, scale: 1, rotate: 0 }}
-                exit={{ opacity: 0, scale: 0.96 }}
-                transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
-                className="absolute overflow-hidden shadow-elevated"
-                style={{ width: 280, height: 360, left: 40, top: -180 }}
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={destinations[active].image} alt="" className="h-full w-full object-cover" />
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </motion.div>
-      )}
+      {/* Foto flotante (solo puntero fino; oculta con movimiento reducido) */}
+      <motion.div
+        aria-hidden="true"
+        style={{ x: sx, y: sy }}
+        className="pointer-events-none absolute left-0 top-0 z-10 hidden [@media(hover:hover)]:lg:block motion-reduce:hidden"
+      >
+        <AnimatePresence>
+          {active !== null && (
+            <motion.div
+              key={active}
+              initial={{ opacity: 0, scale: 0.92, rotate: -2 }}
+              animate={{ opacity: 1, scale: 1, rotate: 0 }}
+              exit={{ opacity: 0, scale: 0.96 }}
+              transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
+              className="absolute overflow-hidden shadow-elevated"
+              style={{ width: 280, height: 360, left: 40, top: -180 }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={destinations[active].image} alt="" className="h-full w-full object-cover" />
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </motion.div>
     </div>
   );
 }

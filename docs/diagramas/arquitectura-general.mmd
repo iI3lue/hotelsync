@@ -1,0 +1,33 @@
+%% HotelSync - logical architecture as built (2026-10-30)
+flowchart LR
+  U["Usuarios<br/>Huésped · Recepción · HK<br/>Revenue manager · Super admin"]
+
+  subgraph APP["Presentación e identidad"]
+    direction TB
+    WEB["Next.js 15<br/>portal + /admin"]
+    BFF["BFF /api/*<br/>cookie HttpOnly"]
+    AUTH0["Auth0 + Google"]
+    USER["user-service 3003"]
+    WEB --> BFF
+    WEB --> AUTH0
+    AUTH0 --> USER
+  end
+
+  subgraph PLATFORM["Servicios y datos"]
+    direction TB
+    S1["Servicios de dominio (9)<br/>property 3001 · rate 3002 · booking 3004<br/>front-desk 3005 · housekeeping 3006 · billing 3007<br/>channel-manager 3008 · loyalty 3009 · payment 3010"]
+    S3["Analytics 3011"]
+    PG[("11 PostgreSQL<br/>Neon, una por servicio")]
+    MQ["CloudAMQP<br/>hotelsync.events"]
+    REDIS[("Redis<br/>caché R&A")]
+    S1 --> PG
+    S3 --> PG
+    S1 -.-> MQ
+    S1 -.-> REDIS
+    S3 -.-> MQ
+  end
+
+  U --> WEB
+  BFF -->|"HTTP /v1 + JWT"| S1
+  BFF -->|"HTTP /v1 + JWT"| S3
+  USER -.-> PG

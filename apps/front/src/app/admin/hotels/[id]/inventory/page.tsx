@@ -1,7 +1,13 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { fetchHotelById, fetchRoomTypes } from "@/lib/api";
 import { getSessionScope } from "@/lib/server-session";
 import InventoryTable from "@/components/InventoryTable";
+
+export const metadata: Metadata = {
+  title: "Inventario",
+  description: "Disponibilidad y cupos por tipo de habitación.",
+};
 
 export default async function InventoryPage({
   params,

@@ -1,0 +1,29 @@
+%% HotelSync - check-in, checkout and asynchronous reactions (2026-10-30)
+sequenceDiagram
+  autonumber
+  actor R as Recepción
+  participant FD as front-desk
+  participant MQ as hotelsync.events
+  participant HS as housekeeping
+  participant BL as billing
+  participant LO as loyalty
+  participant AN as analytics
+
+  MQ->>FD: booking.confirmed
+  FD->>FD: upsert Arrival
+  MQ->>BL: booking.confirmed
+  BL->>BL: abre folio con cargo de habitación
+  MQ->>LO: payment.completed
+  LO->>LO: acredita puntos (idempotente por booking_id)
+  Note over R,FD: check-in en recepción, solo si status = confirmed
+  R->>FD: check-in (booking_id)
+  FD->>MQ: checkout.completed + booking.completed (outbox)
+  MQ->>HS: checkout.completed
+  HS->>HS: room dirty + tarea pending
+  MQ->>BL: checkout.completed
+  BL->>BL: cierra folio, emite Invoice y folio.closed
+  MQ->>LO: booking.completed (no-op idempotente)
+  loop cada 6 h o manual
+    AN->>AN: ETL lee réplicas read-only y hace upsert por hotel-día
+    AN->>MQ: metrics.updated
+  end

@@ -1,0 +1,45 @@
+%% Generado por docs/tools/er_from_prisma.py — no editar a mano.
+%% Fuente: services/rate-availability-service/prisma/schema.prisma
+erDiagram
+  Inventory {
+    string inventory_id PK
+    string room_type_id
+    timestamp date
+    int available_count
+    int blocked_count
+  }
+  Rate {
+    string rate_id PK
+    string room_type_id
+    timestamp report_date
+    decimal price
+  }
+  RateRule {
+    string rule_id PK
+    string room_type_id
+    timestamp start_date
+    timestamp end_date
+    decimal multiplier
+    int min_stay
+  }
+  ProcessedEvent {
+    string event_id PK
+    string event_type
+    timestamp processed_at
+  }
+  AppliedKey {
+    string key PK
+    timestamp created_at
+  }
+  EventOutbox {
+    string event_id PK
+    string event_type
+    json payload
+    string status
+    int attempts
+    timestamp created_at
+    timestamp sent_at
+  }
+
+  Inventory ||--o{ Rate : "room_type_id (lógica)"
+  Inventory ||--o{ RateRule : "room_type_id (lógica)"

@@ -1,0 +1,49 @@
+%% Generado por docs/tools/er_from_prisma.py — no editar a mano.
+%% Fuente: services/booking-service/prisma/schema.prisma
+erDiagram
+  Booking {
+    string booking_id PK
+    string guest_id
+    string guest_name
+    string guest_email
+    string guest_phone
+    string booked_by_user_id
+    string manage_token_hash UK
+    timestamp manage_token_expires_at
+    string hotel_id
+    string room_type_id
+    timestamp check_in
+    timestamp check_out
+    string status
+    string channel
+    string channel_external_id
+    decimal total_amount
+    string payment_status
+    string payment_method_preference
+    string payment_transaction_id
+    timestamp paid_at
+    int version
+    timestamp created_at
+    timestamp updated_at
+  }
+  InventoryReservationAttempt {
+    string booking_id PK, FK
+    string idempotency_key UK
+    string status
+    int attempts
+    timestamp next_attempt_at
+    string last_error
+    timestamp created_at
+    timestamp updated_at
+  }
+  EventOutbox {
+    string event_id PK
+    string event_type
+    json payload
+    string status
+    int attempts
+    timestamp created_at
+    timestamp sent_at
+  }
+
+  Booking ||--o| InventoryReservationAttempt : "booking_id"

@@ -1,6 +1,12 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import HotelForm from "@/components/HotelForm";
 import { getSessionScope } from "@/lib/server-session";
+
+export const metadata: Metadata = {
+  title: "Nuevo hotel",
+  description: "Alta de una nueva propiedad en la cadena.",
+};
 
 export default async function NewHotelPage() {
   // Crear hoteles es SUPER_ADMIN (el backend lo rechaza con 403).

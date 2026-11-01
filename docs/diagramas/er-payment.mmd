@@ -1,0 +1,34 @@
+%% Generado por docs/tools/er_from_prisma.py — no editar a mano.
+%% Fuente: services/payment-service/prisma/schema.prisma
+erDiagram
+  PaymentTransaction {
+    string transaction_id PK
+    string booking_id UK
+    string user_id
+    string hotel_id
+    decimal amount
+    string currency
+    string method
+    string status
+    string channel
+    string failure_reason
+    string auth_code
+    string card_brand
+    string card_last4
+    int attempts
+    string recorded_by
+    string received_by
+    boolean refund_requested
+    timestamp refunded_at
+    timestamp created_at
+    timestamp updated_at
+  }
+  EventOutbox {
+    string event_id PK
+    string event_type
+    json payload
+    string status
+    int attempts
+    timestamp created_at
+    timestamp sent_at
+  }

@@ -1,0 +1,29 @@
+%% Generado por docs/tools/er_from_prisma.py — no editar a mano.
+%% Fuente: services/housekeeping-service/prisma/schema.prisma
+erDiagram
+  RoomStatus {
+    string room_status_id PK
+    string hotel_id
+    string physical_room_id
+    string room_number
+    string status
+    string assigned_to
+    timestamp updated_at
+  }
+  CleaningHistory {
+    string history_id PK
+    string room_status_id FK
+    string booking_id UK
+    string hotel_id
+    string physical_room_id
+    string room_number
+    string status
+    string assigned_to
+    string assigned_to_user_id
+    string completed_by_user_id
+    timestamp completed_at
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  RoomStatus ||--o{ CleaningHistory : "room_status_id"

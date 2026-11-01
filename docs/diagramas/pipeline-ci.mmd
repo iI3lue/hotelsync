@@ -1,0 +1,29 @@
+%% HotelSync - continuous integration as built (2026-10-30)
+flowchart TB
+  subgraph MONO["Monorepo - .github/workflows/ci.yml"]
+    M1["checkout + Node 20 + npm ci"]
+    M2["6 contenedores PostgreSQL<br/>puertos 5432-5437"]
+    M3["prisma migrate deploy<br/>property, rate, booking,<br/>front-desk, housekeeping, billing"]
+    M4["build (tsc) de 6 servicios<br/>+ Jest de todos los workspaces"]
+    M5["next build del front"]
+    M1 --> M2 --> M3 --> M4
+    M1 --> M5
+  end
+
+  subgraph SPLIT["11 repos backend split - workflow reusable ci-v1"]
+    S1["checkout"]
+    S2["Node 20 + npm ci"]
+    S3["prisma validate + generate<br/>+ migrate deploy"]
+    S4["tsc --noEmit + build + Jest"]
+    S1 --> S2 --> S3 --> S4
+  end
+
+  subgraph DEPLOY["Despliegue - fuera del CI"]
+    D1["Render auto-deploy de main<br/>11 web services"]
+    D2["Vercel auto-deploy de main<br/>front"]
+    D3["deploy.yml del monorepo:<br/>placeholder, no despliega"]
+  end
+
+  M4 -.->|"no despliega"| D3
+  S4 -.->|"push a main<br/>(sin gate de CI)"| D1
+  S4 -.->|"front split"| D2

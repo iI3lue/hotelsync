@@ -1,9 +1,10 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { fetchHotels, type Hotel } from "@/lib/api";
+import type { Hotel } from "@/lib/api";
 import { me } from "@/lib/auth-client";
 import {
+  fetchHotels,
   fetchStaff,
   createStaff,
   fetchHotelStaff,

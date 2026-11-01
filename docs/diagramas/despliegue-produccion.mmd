@@ -1,0 +1,36 @@
+%% HotelSync - production deployment topology (2026-10-30)
+flowchart LR
+  subgraph GH["GitHub"]
+    MONO["Monorepo HOTELSYNC<br/>(desarrollo)"]
+    SPLITS["11 repos backend split<br/>+ repo front split"]
+    CI1["ci.yml raiz<br/>6 servicios con DB + front"]
+    CI2["workflow reusable ci-v1<br/>11 servicios backend"]
+    MONO -->|"push"| CI1
+    SPLITS -->|"push"| CI2
+  end
+
+  subgraph VERCEL["Vercel"]
+    FRONT["Next.js front<br/>NEXT_PUBLIC_* en build-time"]
+  end
+
+  subgraph RENDER["Render - Oregon, plan free"]
+    API["11 web services Node.js<br/>property, rate-availability, user,<br/>booking, front-desk, housekeeping,<br/>billing, channel-manager, loyalty,<br/>payment, analytics<br/>duermen tras 15 min sin trafico"]
+  end
+
+  subgraph DATA["Servicios gestionados"]
+    NEON[("11 proyectos Neon<br/>us-west-2, una DB por servicio")]
+    AMQP["CloudAMQP<br/>RabbitMQ"]
+    AUTH0["Auth0<br/>Google connection"]
+  end
+
+  USERS["Navegador"] -->|"HTTPS"| FRONT
+  FRONT -->|"rewrites /api/*"| API
+  SPLITS -->|"push main: auto-deploy<br/>sin esperar CI"| RENDER
+  SPLITS -->|"push main: auto-deploy<br/>sin esperar CI"| VERCEL
+  API --> NEON
+  API --> AMQP
+  API --> AUTH0
+  FRONT --> AUTH0
+  LOGS["Logs: Render + Vercel<br/>sin metricas historicas"]
+  RENDER -.-> LOGS
+  VERCEL -.-> LOGS

@@ -4,6 +4,7 @@ import "@fontsource/gilda-display/400.css";
 import "@fontsource-variable/jost/index.css";
 import "./globals.css";
 import SiteFooter from "@/components/SiteFooter";
+import FooterGate from "@/components/FooterGate";
 import RevealObserver from "@/components/ui/RevealObserver";
 import ThemeProvider from "@/components/ThemeProvider";
 import { CurrencyProvider } from "@/components/CurrencyProvider";
@@ -59,7 +60,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
 
           <ConsentGate />
 
-          <SiteFooter />
+          <FooterGate>
+            <SiteFooter />
+          </FooterGate>
           </ToastProvider>
           </CurrencyProvider>
         </ThemeProvider>

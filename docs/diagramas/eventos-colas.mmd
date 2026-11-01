@@ -1,0 +1,67 @@
+%% HotelSync - event catalog and durable queues (2026-10-30)
+flowchart LR
+  subgraph PROD["Productores"]
+    BK["booking"]
+    FD["front-desk"]
+    BL["billing"]
+    PAY["payment"]
+    PR["property"]
+    RA["rate-availability"]
+    AN["analytics"]
+  end
+
+  X(("hotelsync.events"))
+
+  subgraph QUEUES["Colas durables"]
+    Q1["front-desk.arrivals"]
+    Q2["housekeeping.tasks"]
+    Q3["billing.folio"]
+    Q4["loyalty.points"]
+    Q5["booking.payments"]
+    Q6["booking.refunds"]
+    Q7["payment.booking-cancellations"]
+    Q8["rate-availability.physical-rooms"]
+    Q9["channel-manager.simulator"]
+  end
+
+  subgraph CONS["Consumidores"]
+    C1["front-desk"]
+    C2["housekeeping"]
+    C3["billing"]
+    C4["loyalty"]
+    C5["booking"]
+    C6["payment"]
+    C7["rate-availability"]
+    C8["channel-manager"]
+  end
+
+  BK -->|"booking.created<br/>booking.confirmed<br/>booking.cancelled<br/>booking.paid"| X
+  FD -->|"checkout.completed<br/>booking.completed"| X
+  BL -->|"folio.closed"| X
+  PAY -->|"payment.completed<br/>payment.refunded"| X
+  PR -->|"physical-room.created"| X
+  RA -->|"availability.updated<br/>rate.updated"| X
+  AN -->|"metrics.updated"| X
+
+  X -->|"booking.confirmed<br/>booking.cancelled"| Q1
+  X -->|"checkout.completed"| Q2
+  X -->|"booking.confirmed<br/>checkout.completed"| Q3
+  X -->|"payment.completed<br/>booking.completed<br/>booking.cancelled"| Q4
+  X -->|"payment.completed"| Q5
+  X -->|"payment.refunded"| Q6
+  X -->|"booking.cancelled"| Q7
+  X -->|"physical-room.created"| Q8
+  X -->|"booking.created/confirmed/cancelled<br/>availability.updated<br/>rate.updated"| Q9
+
+  Q1 --> C1
+  Q2 --> C2
+  Q3 --> C3
+  Q4 --> C4
+  Q5 --> C5
+  Q6 --> C5
+  Q7 --> C6
+  Q8 --> C7
+  Q9 --> C8
+
+  NOTE["Sin consumidor al 30-oct:<br/>booking.paid, folio.closed,<br/>metrics.updated"]
+  X -.-> NOTE

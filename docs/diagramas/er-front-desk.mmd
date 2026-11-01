@@ -1,0 +1,41 @@
+%% Generado por docs/tools/er_from_prisma.py — no editar a mano.
+%% Fuente: services/front-desk-service/prisma/schema.prisma
+erDiagram
+  RoomAssignment {
+    string assignment_id PK
+    string booking_id UK
+    string physical_room_id
+    string physical_room_number
+    timestamp checked_in_at
+    timestamp checked_out_at
+  }
+  Arrival {
+    string booking_id PK
+    string hotel_id
+    string room_type_id
+    string guest_id
+    string guest_name
+    timestamp check_in
+    timestamp check_out
+    string channel
+    string status
+    timestamp created_at
+    timestamp updated_at
+  }
+  EventOutbox {
+    string event_id PK
+    string event_type
+    json payload
+    string status
+    int attempts
+    timestamp created_at
+    timestamp sent_at
+  }
+  GuestIncident {
+    string incident_id PK
+    string booking_id
+    string hotel_id
+    string description
+    string status
+    timestamp created_at
+  }

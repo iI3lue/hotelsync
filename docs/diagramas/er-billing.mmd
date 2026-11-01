@@ -1,0 +1,46 @@
+%% Generado por docs/tools/er_from_prisma.py — no editar a mano.
+%% Fuente: services/billing-service/prisma/schema.prisma
+erDiagram
+  Folio {
+    string folio_id PK
+    string booking_id UK
+    string hotel_id
+    string guest_id
+    string currency
+    decimal total
+    string status
+    timestamp created_at
+    timestamp updated_at
+  }
+  Charge {
+    string charge_id PK
+    string folio_id FK
+    string concept
+    decimal amount
+    string category
+    timestamp added_at
+  }
+  Invoice {
+    string invoice_id PK
+    string folio_id FK
+    string invoice_number UK
+    decimal subtotal
+    decimal tax_rate
+    decimal tax_amount
+    decimal total
+    string currency
+    string country
+    timestamp issued_at
+  }
+  EventOutbox {
+    string event_id PK
+    string event_type
+    json payload
+    string status
+    int attempts
+    timestamp created_at
+    timestamp sent_at
+  }
+
+  Folio ||--o{ Charge : "folio_id"
+  Folio ||--o| Invoice : "folio_id"

@@ -1,6 +1,12 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { fetchHotelById } from "@/lib/api";
 import { getSessionScope } from "@/lib/server-session";
+
+export const metadata: Metadata = {
+  title: "Detalle del hotel",
+  description: "Configuración de la propiedad, habitaciones e inventario.",
+};
 
 export default async function HotelDetailPage({
   params,

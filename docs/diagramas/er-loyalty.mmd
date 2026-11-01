@@ -1,0 +1,29 @@
+%% Generado por docs/tools/er_from_prisma.py — no editar a mano.
+%% Fuente: services/loyalty-service/prisma/schema.prisma
+erDiagram
+  LoyaltyAccount {
+    string account_id PK
+    string user_id UK
+    string tier
+    int points_balance
+    timestamp created_at
+    timestamp updated_at
+  }
+  PointsTransaction {
+    string transaction_id PK
+    string user_id
+    string type
+    int points
+    string booking_id
+    string reason
+    timestamp created_at
+  }
+  EventOutbox {
+    string event_id PK
+    string event_type
+    json payload
+    string status
+    int attempts
+    timestamp created_at
+    timestamp sent_at
+  }

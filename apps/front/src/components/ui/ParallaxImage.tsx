@@ -1,7 +1,7 @@
 "use client";
 
 import { motion, useReducedMotion, useScroll, useTransform } from "framer-motion";
-import { useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import Photo from "./Photo";
 
 /**
@@ -23,8 +23,14 @@ export default function ParallaxImage({
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const reduce = useReducedMotion();
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
   const { scrollYProgress } = useScroll({ target: ref, offset: ["start start", "end start"] });
-  const y = useTransform(scrollYProgress, [0, 1], [0, reduce ? 0 : strength]);
+  const y = useTransform(
+    scrollYProgress,
+    [0, 1],
+    [0, mounted && !reduce ? strength : 0]
+  );
 
   return (
     <div ref={ref} className={`absolute inset-0 overflow-hidden ${className}`}>

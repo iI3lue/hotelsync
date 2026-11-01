@@ -80,10 +80,11 @@ export default function EnterForm({
       const dest = postLoginDest(profile, returnTo);
       window.location.href = `${dest}${dest.includes("?") ? "&" : "?"}login=email`;
     } catch (err) {
+      const raw = err instanceof Error ? err.message : "";
       setError(
-        err instanceof Error
-          ? err.message
-          : "No se pudo iniciar sesión. Revisá las credenciales."
+        raw === "Invalid credentials"
+          ? "Correo o contraseña incorrectos."
+          : raw || "No se pudo iniciar sesión. Revisá las credenciales."
       );
     } finally {
       setLoading(false);

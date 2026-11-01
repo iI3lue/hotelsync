@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { fetchPhysicalRooms, fetchRoomTypes } from "@/lib/api";
 import { getSessionScope } from "@/lib/server-session";
 import { formatDate } from "@/lib/format";
 import PhysicalRoomForm from "@/components/PhysicalRoomForm";
 import RoomTypeForm from "@/components/RoomTypeForm";
+
+export const metadata: Metadata = {
+  title: "Tipos de habitación",
+  description: "Tipos de habitación y cuartos físicos del hotel.",
+};
 
 export default async function RoomTypesPage({
   params,

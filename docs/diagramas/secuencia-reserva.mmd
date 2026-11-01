@@ -1,0 +1,24 @@
+%% HotelSync - reservation and payment phase (2026-10-30)
+sequenceDiagram
+  autonumber
+  actor G as Huésped
+  participant BFF as Front BFF
+  participant BK as booking
+  participant RA as rate-availability
+  participant PAY as payment
+  participant MQ as hotelsync.events
+
+  G->>BFF: POST /api/booking/v1/bookings
+  BFF->>BK: POST /v1/bookings (JWT)
+  BK->>BK: crea reserva pending y outbox booking.created
+  BK-->>G: booking pending + manage token
+  G->>BFF: POST /api/payments/v1/checkout
+  BFF->>PAY: POST /v1/checkout
+  PAY->>PAY: registra PaymentTransaction y simula gateway
+  PAY->>MQ: payment.completed (outbox)
+  MQ->>BK: payment.completed
+  BK->>RA: POST /v1/availability/reserve (idempotency key)
+  RA-->>BK: inventario comprometido
+  BK->>BK: status confirmed, payment PAID, version++
+  BK->>MQ: booking.confirmed + booking.paid
+  Note over G,BK: La reserva queda confirmada. Los consumidores reaccionan en el panel b.

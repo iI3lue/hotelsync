@@ -1,9 +1,15 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { fetchHotels, filterHotels } from "@/lib/api";
 import { getSessionScope } from "@/lib/server-session";
 import AdminFilters from "@/components/AdminFilters";
 import ConfirmAction from "@/components/ConfirmAction";
+
+export const metadata: Metadata = {
+  title: "Hoteles",
+  description: "Propiedades de la cadena: capacidad, tipos de habitación e inventario.",
+};
 
 async function HotelsTable({
   query,

@@ -1,6 +1,13 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { fetchArrivals, fetchBookings, fetchHotelById, fetchHotels } from "@/lib/api";
+import { isAllowedPathForRole, ROUTES } from "@/lib/routes";
 import { getSessionScope } from "@/lib/server-session";
+
+export const metadata: Metadata = {
+  title: "Panel de control",
+  description: "Resumen operativo de la cadena hotelera.",
+};
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
@@ -20,6 +27,10 @@ export default async function DashboardPage() {
   // El manager solo opera su hotel asignado.
   const isManager = session.role === "MANAGER";
   const assignedHotelId = session.hotel_id;
+  const canAccessOperations = isAllowedPathForRole(
+    session.role ?? "GUEST",
+    ROUTES.adminReception
+  );
 
   let hotelsCount = 0;
   let firstHotelId = "";
@@ -66,6 +77,7 @@ export default async function DashboardPage() {
   const housekeepingHref = firstHotelId
     ? `/admin/housekeeping?hotel_id=${firstHotelId}`
     : "/admin/housekeeping";
+  const pendingHref = `${receptionHref}${receptionHref.includes("?") ? "&" : "?"}tab=reservas`;
 
   return (
     <div className="mx-auto w-full max-w-7xl px-4 py-4 space-y-8">
@@ -80,7 +92,7 @@ export default async function DashboardPage() {
               Gestión & Operaciones
             </span>
           </div>
-          <p className="mt-1 text-sm capitalize text-gray-500 dark:text-gray-400">
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {formattedToday()}
           </p>
         </div>
@@ -137,9 +149,13 @@ export default async function DashboardPage() {
           </p>
           <div className="mt-3 flex items-center justify-between pt-2 border-t border-gray-100 text-xs dark:border-white/6">
             <span className="text-gray-500 dark:text-gray-400">Front Desk</span>
-            <Link href={receptionHref} className="font-semibold text-brand-gold hover:underline">
-              Ir a recepción →
-            </Link>
+            {canAccessOperations ? (
+              <Link href={receptionHref} className="font-semibold text-brand-gold hover:underline">
+                Ir a recepción →
+              </Link>
+            ) : (
+              <span className="text-gray-500 dark:text-gray-400">Solo lectura</span>
+            )}
           </div>
         </div>
 
@@ -159,10 +175,14 @@ export default async function DashboardPage() {
             {pendingCount}
           </p>
           <div className="mt-3 flex items-center justify-between pt-2 border-t border-gray-100 text-xs dark:border-white/6">
-            <span className="text-gray-500 dark:text-gray-400">Por confirmar</span>
-            <Link href={`${receptionHref}&tab=reservas`} className="font-semibold text-brand-gold hover:underline">
-              Revisar →
-            </Link>
+            <span className="text-gray-500 dark:text-gray-400">Hoy, por confirmar</span>
+            {canAccessOperations ? (
+              <Link href={pendingHref} className="font-semibold text-brand-gold hover:underline">
+                Revisar →
+              </Link>
+            ) : (
+              <span className="text-gray-500 dark:text-gray-400">Solo lectura</span>
+            )}
           </div>
         </div>
 
@@ -195,12 +215,13 @@ export default async function DashboardPage() {
           Módulos de Operación
         </h2>
 
-        <div className={`grid grid-cols-1 gap-4 ${isManager ? "md:grid-cols-2 xl:grid-cols-4" : "md:grid-cols-3"}`}>
+        <div className={`grid grid-cols-1 gap-4 ${isManager ? "md:grid-cols-2" : "md:grid-cols-3"}`}>
           {/* Recepción */}
-          <Link
-            href={receptionHref}
-            className="group rounded-2xl border border-gray-200/80 bg-white p-6 shadow-xs transition-all hover:border-brand-gold/40 hover:shadow-card dark:border-white/10 dark:bg-brand-navy-800"
-          >
+          {canAccessOperations ? (
+            <Link
+              href={receptionHref}
+              className="group rounded-2xl border border-gray-200/80 bg-white p-6 shadow-xs transition-all hover:border-brand-gold/40 hover:shadow-card dark:border-white/10 dark:bg-brand-navy-800"
+            >
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-gold/15 text-brand-gold transition-transform group-hover:scale-105">
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -219,7 +240,8 @@ export default async function DashboardPage() {
             <p className="mt-4 text-xs text-gray-600 dark:text-gray-300">
               Operá el flujo de huéspedes, asigná números de habitación en tiempo real y gestioná check-outs con sincronización a eventos.
             </p>
-          </Link>
+            </Link>
+          ) : null}
 
           {/* Hoteles */}
           <Link
@@ -247,10 +269,11 @@ export default async function DashboardPage() {
           </Link>
 
           {/* Limpieza */}
-          <Link
-            href={housekeepingHref}
-            className="group rounded-2xl border border-gray-200/80 bg-white p-6 shadow-xs transition-all hover:border-brand-gold/40 hover:shadow-card dark:border-white/10 dark:bg-brand-navy-800"
-          >
+          {canAccessOperations ? (
+            <Link
+              href={housekeepingHref}
+              className="group rounded-2xl border border-gray-200/80 bg-white p-6 shadow-xs transition-all hover:border-brand-gold/40 hover:shadow-card dark:border-white/10 dark:bg-brand-navy-800"
+            >
             <div className="flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/10 text-emerald-600 transition-transform group-hover:scale-105 dark:text-emerald-400">
                 <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -269,7 +292,8 @@ export default async function DashboardPage() {
             <p className="mt-4 text-xs text-gray-600 dark:text-gray-300">
               Supervisá la transición de estados de limpieza tras cada check-out, asigná camaristas y mantené el inventario habitable.
             </p>
-          </Link>
+            </Link>
+          ) : null}
 
           {/* Personal (solo manager: gestión de cuentas de su hotel) */}
           {isManager ? (

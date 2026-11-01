@@ -10,6 +10,7 @@ import {
   type AnalyticsOccupancyPoint,
 } from "@/lib/api-client";
 import type { Hotel } from "@/lib/api";
+import { me } from "@/lib/auth-client";
 import { toIsoDate } from "@/lib/dates";
 import { formatDate, formatMoney } from "@/lib/format";
 
@@ -45,11 +46,35 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     let cancelled = false;
-    fetchHotels()
-      .then((list) => {
+    Promise.all([fetchHotels(), me().catch(() => null)])
+      .then(([list, profile]) => {
         if (cancelled) return;
-        setHotels(list);
-        setHotelId((current) => current || list[0]?.hotel_id || "");
+        if (!profile) {
+          setError("No se pudo verificar tu sesión. Volvé a iniciar sesión.");
+          setLoading(false);
+          return;
+        }
+        const scoped =
+          profile.role === "MANAGER"
+            ? list.filter((hotel) => hotel.hotel_id === profile.hotel_id)
+            : list;
+        if (profile.role === "MANAGER" && !profile.hotel_id) {
+          setError("Tu cuenta no tiene un hotel asignado. Contactá a soporte.");
+          setLoading(false);
+          return;
+        }
+        if (profile.role === "MANAGER" && scoped.length === 0) {
+          setError("Tu hotel asignado no está disponible en el catálogo.");
+          setLoading(false);
+          return;
+        }
+        if (scoped.length === 0) {
+          setError("No hay hoteles disponibles para analizar.");
+          setLoading(false);
+          return;
+        }
+        setHotels(scoped);
+        setHotelId((current) => current || scoped[0]?.hotel_id || "");
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -103,7 +128,10 @@ export default function AnalyticsPage() {
   const isEmpty = !loading && !error && !invalidRange && occupancy.length === 0;
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-8 px-4 py-4">
+    <div
+      className="mx-auto w-full max-w-7xl space-y-8 px-4 py-4"
+      aria-busy={loading}
+    >
       <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -128,6 +156,7 @@ export default function AnalyticsPage() {
               value={hotelId}
               onChange={(event) => setHotelId(event.target.value)}
               aria-label="Hotel"
+              disabled={loading}
             >
               {hotels.length === 0 && <option value="">Sin hoteles</option>}
               {hotels.map((hotel) => (
@@ -144,6 +173,7 @@ export default function AnalyticsPage() {
               className={fieldClass}
               value={from}
               onChange={(event) => setFrom(event.target.value)}
+              disabled={loading}
             />
           </label>
           <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400">
@@ -153,6 +183,7 @@ export default function AnalyticsPage() {
               className={fieldClass}
               value={to}
               onChange={(event) => setTo(event.target.value)}
+              disabled={loading}
             />
           </label>
         </div>
