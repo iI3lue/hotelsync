@@ -5,6 +5,7 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
+  output   = "../node_modules/.prisma/client"
 }
 
 /// Un cobro por reserva (PRD §5). La fila se reutiliza en los reintentos tras
