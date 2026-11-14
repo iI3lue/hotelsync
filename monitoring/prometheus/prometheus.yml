@@ -1,0 +1,83 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  # Probe de /health de cada servicio y del gateway con el blackbox exporter.
+  # host.docker.internal apunta al host, donde los servicios publican sus puertos
+  # (tanto en docker compose como con `npm run dev:*`).
+  - job_name: hotelsync-health
+    metrics_path: /probe
+    params:
+      module: [http_2xx]
+    static_configs:
+      - targets: ["http://host.docker.internal:3001/health"]
+        labels:
+          service: property
+      - targets: ["http://host.docker.internal:3002/health"]
+        labels:
+          service: rate
+      - targets: ["http://host.docker.internal:3003/health"]
+        labels:
+          service: user
+      - targets: ["http://host.docker.internal:3004/health"]
+        labels:
+          service: booking
+      - targets: ["http://host.docker.internal:3005/health"]
+        labels:
+          service: front-desk
+      - targets: ["http://host.docker.internal:3006/health"]
+        labels:
+          service: housekeeping
+      - targets: ["http://host.docker.internal:3007/health"]
+        labels:
+          service: billing
+      - targets: ["http://host.docker.internal:3008/health"]
+        labels:
+          service: channel-manager
+      - targets: ["http://host.docker.internal:3009/health"]
+        labels:
+          service: loyalty
+      - targets: ["http://host.docker.internal:3010/health"]
+        labels:
+          service: payment
+      - targets: ["http://host.docker.internal:3011/health"]
+        labels:
+          service: analytics
+      - targets: ["http://host.docker.internal:8080/health"]
+        labels:
+          service: gateway
+    relabel_configs:
+      - source_labels: [__address__]
+        target_label: __param_target
+      - source_labels: [__param_target]
+        target_label: instance
+      - target_label: __address__
+        replacement: blackbox-exporter:9115
+
+  # Endpoints /metrics (prom-client) del piloto: property-service y api-gateway.
+  - job_name: hotelsync-metrics
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["host.docker.internal:3001"]
+        labels:
+          service: property
+      - targets: ["host.docker.internal:3002"]
+        labels:
+          service: rate
+      - targets: ["host.docker.internal:3003"]
+        labels:
+          service: user
+      - targets: ["host.docker.internal:3004"]
+        labels:
+          service: booking
+      - targets: ["host.docker.internal:3005"]
+        labels:
+          service: front-desk
+      - targets: ["host.docker.internal:8080"]
+        labels:
+          service: gateway
