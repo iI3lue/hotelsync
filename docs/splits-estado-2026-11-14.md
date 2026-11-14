@@ -40,19 +40,33 @@ Clones nuevos (sanos, alineados con GitHub, sin cambios):
 
 ## `_legacy`
 
-Siete carpetas (`hotelsync-billing-service`, `hotelsync-front-desk-service`,
-`hotelsync-housekeeping-service`, `hotelsync-front`, `hotelsync-booking-service-old-nogit`,
-`gateway`, `user-service-repo`): **cero archivos de `src/`, `prisma/` o `tests/`**; solo el interior
-de `.git` y directorios vacíos. No hay nada que rescatar; se pueden borrar junto con
-`Temp\opencode\hotelsync-split`.
+`_legacy` **no estaba vacío**: contiene `gateway`, un snapshot con **253 archivos** de los 11
+servicios (código de `src/`, `prisma/`, `tests/`, `Dockerfile`, etc.), byte-idéntico a `origin/main`
+de cada repo en el momento del snapshot. Verificación previa al borrado: **ningún archivo existía
+solo en `_legacy`**; los 14 repos vivos son superconjunto del snapshot. También había
+1 archivo en `_legacy\hotelsync-front` (`.gitignore`, mismo contenido que el del split) y el resto
+de las carpetas estaban vacías. Se borró junto con `Temp\opencode\hotelsync-split` (vacío).
 
-## Acciones recomendadas
+Nota de encoding: algunos archivos de los splits tienen comentarios con mojibake
+(p. ej. `loyalty-service/src/lib/consumer.ts`). No se normalizaron en esta ronda para no ensuciar
+los diffs.
 
-1. Restaurar los 8 árboles vaciados y alinearlos con GitHub:
-   `git -C <repo> reset --hard origin/main`
-   (no se pierde nada: no hay contenido local propio).
-2. Recién entonces sincronizar el monitoreo (`src/lib/metrics.ts` + cableado en `index.ts` +
-   `prom-client`) en los cinco splits ya instrumentados en el monolito.
-3. Borrar `_legacy` y la carpeta vieja de `Temp` cuando el punto 1 esté verificado.
-4. Recordatorio: el monolito sigue con el trabajo de monitoreo **sin commitear**; es el bloqueo
-   pendiente para mover todo a otro PC.
+## Estado tras la ejecución (2026-11-14, tarde)
+
+- **Monolito**: 11 commits locales (10 de la fase 2 + 1 de corrección de este documento), árbol
+  limpio; sigue **sin push**.
+- **Splits**: los 14 repos alineados con `origin/main` antes de la fase 3.
+- **Métricas**: sincronizadas y commiteadas **localmente** en 6 splits (`api-gateway`, `property`,
+  `rate-availability`, `booking`, `front-desk`, `user`) con `prom-client` y `/metrics` antes del
+  middleware de secreto; `lint`, `test` y `build` en verde en cada uno.
+- **Pendiente**: push (difiere deploys de Render) y decisión sobre el clon duplicado `front-sync`.
+
+## Acciones recomendadas (actualizado)
+
+1. ~~Restaurar los 8 árboles vaciados~~: hecho con `git reset --hard origin/main`; nada se perdió.
+2. ~~Sincronizar el monitoreo en los cinco splits~~: hecho en **seis** splits (se omitía
+   `api-gateway`). Ver `docs/api-gateway-cutover.md`; `ROLLOUT-GATEWAY.md` no existe.
+3. ~~Borrar `_legacy` y la carpeta vieja de `Temp`~~: hecho, tras verificar que no había archivos
+   únicos.
+4. **Pendiente**: decidir si se borra `front-sync` (clon vaciado, mismo remoto que `hotelsync-front`)
+   y cuándo se hace push a los splits.
