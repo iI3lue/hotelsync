@@ -59,7 +59,8 @@ los diffs.
 - **Métricas**: sincronizadas y commiteadas **localmente** en 6 splits (`api-gateway`, `property`,
   `rate-availability`, `booking`, `front-desk`, `user`) con `prom-client` y `/metrics` antes del
   middleware de secreto; `lint`, `test` y `build` en verde en cada uno.
-- **Pendiente**: push (difiere deploys de Render) y decisión sobre el clon duplicado `front-sync`.
+- **Pendiente**: push (difiere deploys de Render). El clon duplicado `front-sync` se **conserva**
+  por decisión explícita.
 
 ## Acciones recomendadas (actualizado)
 
@@ -68,5 +69,5 @@ los diffs.
    `api-gateway`). Ver `docs/api-gateway-cutover.md`; `ROLLOUT-GATEWAY.md` no existe.
 3. ~~Borrar `_legacy` y la carpeta vieja de `Temp`~~: hecho, tras verificar que no había archivos
    únicos.
-4. **Pendiente**: decidir si se borra `front-sync` (clon vaciado, mismo remoto que `hotelsync-front`)
-   y cuándo se hace push a los splits.
+4. ~~Borrar `front-sync`~~: se decidió **conservarlo** (clon vaciado con el mismo remoto). Queda
+   pendiente definir cuándo se hace push a los splits.
