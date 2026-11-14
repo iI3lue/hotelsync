@@ -46,9 +46,12 @@ export async function connect(): Promise<ConfirmChannel> {
   return connecting;
 }
 
+export function isConnected(): boolean {
+  return channel !== null;
+}
+
 /** Publishes a persistent topic event and waits for the broker confirm. */
-export async function publish(routingKey: string, payload: unknown): Promise<void> {
-  const connectedChannel = await connect();
+export async function publish(routingKey: string, payload: unknown): Promise<void> {  const connectedChannel = await connect();
   await new Promise<void>((resolve, reject) => {
     connectedChannel.publish(
       EXCHANGE,

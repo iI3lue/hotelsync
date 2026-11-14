@@ -46,6 +46,10 @@ export async function connect(): Promise<ConfirmChannel> {
   return connecting;
 }
 
+export function isConnected(): boolean {
+  return confirmChannel !== null;
+}
+
 export type PendingEvent = {
   event_id: string;
   event_type: string;
@@ -104,4 +108,4 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-export const broker = { connect, createDispatcher, startDispatcher };
+export const broker = { connect, createDispatcher, startDispatcher, isConnected };

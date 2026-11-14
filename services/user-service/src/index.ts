@@ -1,12 +1,18 @@
 import express from "express";
+import { requireGateway } from "./middleware/gateway.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import authRouter from "./routes/auth.js";
 import usersRouter from "./routes/users.js";
 import adminRouter from "./routes/admin.js";
 import staffRouter from "./routes/staff.js";
+import { httpMetrics, metricsHandler } from "./lib/metrics.js";
 
 const app = express();
 const PORT = process.env.PORT || 3003;
+
+app.use(httpMetrics);
+app.get("/metrics", metricsHandler);
+app.use(requireGateway);
 
 app.use(express.json());
 
