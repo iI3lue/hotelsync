@@ -20,6 +20,7 @@
     "dev:loyalty": "npm run dev --workspace=services/loyalty-service",
     "dev:payment": "npm run dev --workspace=services/payment-service",
     "dev:analytics": "npm run dev --workspace=services/analytics-service",
+    "dev:gateway": "npm run dev --workspace=services/api-gateway",
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",

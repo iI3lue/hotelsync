@@ -129,6 +129,7 @@ jobs:
           npm run build --workspace=services/front-desk-service
           npm run build --workspace=services/housekeeping-service
           npm run build --workspace=services/billing-service
+          npm run build --workspace=services/api-gateway
 
       - name: Build frontend
         run: |

@@ -158,7 +158,8 @@ services:
   adminer:
     image: adminer:4
     ports:
-      - "8080:8080"
+      # 8082: el 8080 queda para el api-gateway.
+      - "8082:8080"
     depends_on:
       property-db:
         condition: service_healthy
@@ -521,6 +522,70 @@ services:
         condition: service_healthy
       rabbitmq:
         condition: service_healthy
+    restart: unless-stopped
+
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      NODE_ENV: production
+      PORT: "8080"
+      # Solo desarrollo: en produccion usar un secreto de 32+ chars, identico al del BFF.
+      GATEWAY_SHARED_SECRET: hotelsync-dev-gateway-secret-change-me
+      # Los servicios free de Render duermen; 10 s cortaba en frio.
+      UPSTREAM_TIMEOUT_MS: "45000"
+      # En local no hay cold start: el broadcast de despertar solo agrega ruido.
+      WAKE_ALL_ENABLED: "false"
+      PROPERTY_SERVICE_URL: http://property-service:3001/v1
+      RATE_AVAILABILITY_SERVICE_URL: http://rate-availability-service:3002/v1
+      USER_SERVICE_URL: http://user-service:3003/v1
+      BOOKING_SERVICE_URL: http://booking-service:3004/v1
+      FRONT_DESK_SERVICE_URL: http://front-desk-service:3005/v1
+      HOUSEKEEPING_SERVICE_URL: http://housekeeping-service:3006/v1
+      BILLING_SERVICE_URL: http://billing-service:3007/v1
+      # Termina en /v1/simulator: /channel-manager/* mapea 1:1 con el simulador.
+      CHANNEL_MANAGER_SERVICE_URL: http://channel-manager-service:3008/v1/simulator
+      LOYALTY_SERVICE_URL: http://loyalty-service:3009/v1
+      PAYMENTS_SERVICE_URL: http://payment-service:3010/v1
+      ANALYTICS_SERVICE_URL: http://analytics-service:3011/v1
+    depends_on:
+      property-service:
+        condition: service_started
+      rate-availability-service:
+        condition: service_started
+      user-service:
+        condition: service_started
+      booking-service:
+        condition: service_started
+      front-desk-service:
+        condition: service_started
+      housekeeping-service:
+        condition: service_started
+      billing-service:
+        condition: service_started
+      channel-manager-service:
+        condition: service_started
+      loyalty-service:
+        condition: service_started
+      payment-service:
+        condition: service_started
+      analytics-service:
+        condition: service_started
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "node",
+          "-e",
+          "fetch('http://localhost:8080/health').then((r) => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     restart: unless-stopped
 
 volumes:
