@@ -1,0 +1,232 @@
+UNIVERSIDAD COOPERATIVA DE COLOMBIA
+ACTIVIDAD EVALUATIVA MOMENTO 3 (ENTREGA FINAL) – ARQUITECTURA Y
+MODELAMIENTO DE SOFTWARE
+
+El Momento 3 corresponde a la entrega final del curso. Consta de dos partes: la entrega técnica
+del proyecto (microservicios, repositorios, despliegue automatizado, pruebas y monitoreo) y la
+sustentación final, en la que cada estudiante explica, defiende y demuestra la solución
+desarrollada.
+
+Parte A - Entrega Técnica del Proyecto
+A.1 Microservicios asignados
+• Cumplimiento: los microservicios asignados deben estar cumplidos, como mínimo, en un
+90% del total de sus requerimientos.
+• Elementos técnicos: deben estar implementados y funcionando todos los que el proyecto
+demande: APIs, pasarelas de pago, servicios de llamadas, geolocalización, etc.
+• Lógica de negocio: cada microservicio debe implementar correctamente las reglas de su
+dominio y comunicarse con los demás según la arquitectura diseñada.
+
+Matriz de cumplimiento (obligatoria). Ejemplo ilustrativo:
+Microservicio | Requerimientos asignados | Requerimientos cumplidos | % cumplimiento | Elementos técnicos
+Pagos | 12 | 11 | 92% | Pasarela de pagos
+(Otro microservicio) | (...) | (...) | (...) | (...)
+Total | (suma) | (suma) | (>=90%) | 
+
+A.2 Repositorios Git con sus bases de datos
+• Un repositorio Git por cada microservicio, con acceso para el docente si es privado.
+• La base de datos de cada microservicio: esquema (scripts o migraciones), datos de
+ejemplo y, cuando aplique, copia de respaldo.
+• README.md con la descripción del microservicio, tecnologías, instalación, ejecución,
+endpoints y variables de entorno; documentación de la API (Swagger/OpenAPI o
+colección de Postman).
+• Archivos .env.example y .gitignore: no se deben subir credenciales ni llaves de API.
+
+A.3 Enlaces de despliegue
+Un enlace de despliegue activo por cada microservicio, conectado a su base de datos, con
+las credenciales configuradas como variables de entorno.
+• Integraciones externas (pasarelas de pago, llamadas, geolocalización, etc.) funcionando
+en el entorno desplegado; puede usarse el modo de pruebas (sandbox) del proveedor.
+• Enlace a la documentación de la API y, si existe, al frontend o API Gateway, además de
+usuarios y datos de prueba.
+
+A.4 Pruebas automatizadas
+Cada microservicio debe incluir, como mínimo, las siguientes pruebas, almacenadas en su
+repositorio (por ejemplo, en una carpeta /tests):
+• Dos (2) pruebas unitarias: verifican de forma aislada una unidad de la lógica de negocio
+(una función, un servicio o una regla), usando mocks para las dependencias externas
+como la base de datos, otros microservicios o pasarelas de pago.
+• Una (1) prueba de integración: verifica que varios componentes funcionen juntos, por
+ejemplo el endpoint, la lógica de negocio y la base de datos, o la comunicación del
+microservicio con otro servicio.
+
+Evidencia obligatoria de pruebas y cobertura (coverage). Las pruebas deben ser ejecutables con
+un comando documentado en el README y pasar correctamente. Por cada microservicio se debe
+presentar:
+• Evidencia de la ejecución de las pruebas: reporte o captura donde se vea cada prueba y
+su resultado (aprobada), tanto en local como en la ejecución automática de GitHub
+Actions.
+• Reporte de cobertura (coverage) generado con la herramienta propia del lenguaje (por
+ejemplo, pytest-cov, Jest/Istanbul, JaCoCo u otra), con el porcentaje de cobertura del
+microservicio.
+• El reporte de cobertura debe generarse automáticamente en el pipeline y quedar
+disponible como resultado o artefacto de la ejecución en GitHub Actions.
+
+Complete la siguiente tabla para cada microservicio:
+Ejemplo (ilustrativo):
+Microservicio | Prueba unitaria 1 | Prueba unitaria 2 | Prueba de integración | Cobertura
+Pagos | Calcular el total de una orden con descuento | Rechazar un pago con monto inválido | Crear un pago y verificar su registro en la base de datos | (%)
+(Otro microservicio) | (...) | (...) | (...) | (...)
+
+A.5 Despliegue automatizado con GitHub Actions (CI/CD)
+El despliegue de cada microservicio debe estar automatizado mediante GitHub Actions: al hacer
+un cambio en el repositorio, el sistema debe ejecutar las pruebas y, solo si pasan, desplegar la
+nueva versión. No se acepta un despliegue realizado únicamente de forma manual.
+
+Archivos YAML (workflows):
+• Cada repositorio debe contener sus workflows en la carpeta .github/workflows/, en
+archivos YAML correctamente configurados y funcionales.
+• Workflow de integración continua (CI): se ejecuta en cada push y pull request; instala
+dependencias, ejecuta las pruebas unitarias y de integración, y genera el reporte de
+cobertura. Si alguna prueba falla, el pipeline debe fallar y no se debe desplegar.
+• Workflow de despliegue continuo (CD): se ejecuta al integrar los cambios a la rama
+principal (por ejemplo, main) y despliega automáticamente el microservicio en la
+plataforma elegida (Render, Vercel u otra). Debe depender del éxito del paso de pruebas.
+• Los secretos (tokens, llaves de API, credenciales de la plataforma y de la base de datos)
+deben configurarse en GitHub Secrets y referenciarse en el YAML; nunca escribirse en el
+archivo.
+• El YAML debe especificar con claridad los eventos que lo activan (on), las versiones de
+lenguaje y de acciones utilizadas, y los pasos (steps) con nombres descriptivos.
+
+Evidencia requerida:
+• Capturas o enlace de la pestaña Actions del repositorio con ejecuciones exitosas del
+pipeline (pruebas y despliegue).
+• Evidencia de al menos una ejecución en la que un cambio en el código dispara el pipeline
+y termina en un despliegue automático.
+• Evidencia de cómo reacciona el pipeline ante una prueba fallida (el despliegue no debe
+realizarse).
+• Descripción de la estrategia de ramas y control de versiones utilizada (por ejemplo, main,
+develop y ramas de funcionalidad).
+
+Ejemplo de estructura mínima (ilustrativo):
+Archivo | Función
+.github/workflows/ci.yml | Instala dependencias, ejecuta pruebas unitarias e integración y genera el coverage.
+.github/workflows/deploy.yml | Despliega automáticamente en Render/Vercel cuando las pruebas pasan en la rama principal.
+
+A.6 Monitoreo con Prometheus y Grafana
+• Prometheus: cada microservicio debe exponer métricas (por ejemplo, en un endpoint
+/metrics) y Prometheus debe estar configurado para recolectarlas (archivo
+prometheus.yml con los objetivos o targets).
+• Grafana: debe existir al menos un dashboard conectado a Prometheus que muestre el
+estado de los microservicios.
+• Métricas monitoreadas: como mínimo, disponibilidad del servicio, número de peticiones,
+tiempos de respuesta y tasa de errores; se pueden agregar métricas propias del negocio.
+• Evidencia: capturas del dashboard con datos reales en ejecución y de los targets de
+Prometheus en estado activo (UP). Los archivos de configuración deben estar en el
+repositorio.
+
+Parte B - Sustentación Final
+La sustentación consta de cinco momentos. Para cada uno se indica lo que el estudiante debe
+presentar y lo que se evaluará.
+
+1. Contexto del problema y necesidades de solución
+El estudiante explica el problema identificado y la necesidad que motivó el desarrollo del sistema.
+Debe incluir:
+• Contexto general del problema.
+• Tipo de usuarios involucrados.
+• Necesidades detectadas.
+• Objetivo principal del sistema.
+• Justificación de la solución propuesta.
+• Alcance del proyecto.
+
+Se evaluará:
+• Claridad en la explicación.
+• Comprensión del problema.
+• Coherencia entre problema y solución.
+• Capacidad de argumentación.
+
+2. Aspectos técnicos de la arquitectura
+El estudiante explica la arquitectura técnica implementada en el proyecto.
+Debe incluir:
+• Arquitectura basada en microservicios.
+• Función de cada microservicio.
+• Comunicación entre servicios.
+• Uso de APIs.
+• Implementación del patrón SAGA.
+• Manejo de bases de datos.
+• Orquestación o coordinación de servicios.
+• API Gateway.
+• Manejo de autenticación/autorización.
+• Diagramas de arquitectura.
+
+Se evaluará:
+• Dominio técnico de la arquitectura.
+• Correcta explicación de la interacción entre servicios.
+• Comprensión del flujo de datos.
+• Uso adecuado de principios de diseño.
+• Coherencia arquitectónica.
+
+3. Stack tecnológico
+El estudiante justifica las tecnologías utilizadas en el proyecto.
+Debe incluir:
+• Lenguajes de programación utilizados.
+• Frameworks implementados.
+• Motores de bases de datos.
+• Herramientas DevOps.
+• Librerías relevantes.
+• Servicios cloud o plataformas de despliegue.
+• Razones de elección tecnológica.
+
+Se evaluará:
+• Conocimiento del stack tecnológico.
+• Justificación técnica de las herramientas.
+• Compatibilidad entre tecnologías.
+• Buenas prácticas de selección tecnológica.
+
+4. Pruebas, despliegue y monitoreo
+En esta fase se evalúa la implementación de prácticas DevOps y de aseguramiento de calidad.
+Debe incluir:
+Pruebas:
+• Pruebas unitarias: mínimo dos (2) por cada microservicio.
+• Pruebas de integración: mínimo una (1) por cada microservicio.
+• Uso de mocks.
+• Evidencia de ejecución de pruebas y reporte de cobertura (coverage).
+
+Despliegue:
+• Pipeline CI/CD.
+• GitHub Actions: archivos YAML bien configurados para pruebas y despliegue, mostrados
+y explicados.
+• Automatización del despliegue: ejecución en vivo o evidencia de un cambio que dispara
+el pipeline hasta el despliegue.
+• Estrategia de ramas y control de versiones.
+
+Monitoreo:
+• Implementación de Prometheus.
+• Dashboards en Grafana.
+• Métricas monitoreadas.
+• Evidencia del monitoreo en ejecución (dashboard con datos reales).
+
+Se evaluará:
+• Calidad de las pruebas implementadas y de su cobertura.
+• Correcta configuración de los YAML y automatización del proceso de despliegue.
+• Integración de herramientas DevOps.
+• Capacidad de monitoreo del sistema.
+
+5. Demostración funcional del proyecto
+El estudiante realiza una demostración completa del sistema en funcionamiento.
+Debe incluir:
+• Ejecución del sistema en vivo.
+• Flujo funcional entre microservicios.
+• Evidencia del despliegue.
+• Validación de mínimo cinco (5) requerimientos funcionales.
+• Manejo de errores o casos alternos.
+
+Requerimientos mínimos a validar:
+• Creación de información.
+• Consulta de información.
+• Actualización de información.
+• Eliminación o cancelación de procesos.
+• Comunicación entre microservicios.
+
+Se evaluará:
+• Funcionamiento real del sistema.
+• Integración completa de la solución.
+• Cumplimiento de requerimientos.
+• Estabilidad del proyecto.
+• Dominio del estudiante durante la demostración.
+
+Nota:
+Los repositorios y los enlaces de despliegue deben estar activos y accesibles el día de la
+sustentación. Se validará la lógica de negocio y el cumplimiento de los microservicios con sus
+requerimientos. Un microservicio sin repositorio, sin base de datos, sin despliegue automatizado
+con GitHub Actions, sin sus pruebas (dos unitarias y una de integración) con evidencia de
+ejecución y cobertura, o sin monitoreo con Prometheus y Grafana no se considerará completo.

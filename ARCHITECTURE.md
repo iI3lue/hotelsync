@@ -58,8 +58,10 @@ HOTELSYNC/
 │   │   └── (misma estructura + lib/booking-client.ts)
 │   ├── loyalty-service/               ← Express + Prisma (3009)
 │   │   └── (misma estructura + lib/{broker,consumer,booking-client,user-client}.ts)
-│   └── analytics-service/             ← Express + Prisma (3011), réplicas read-only
-│       └── (misma estructura + lib/{broker,outbox,sources}.ts + jobs/{etl,scheduler}.ts)
+│   ├── analytics-service/             ← Express + Prisma (3011), réplicas read-only
+│   │   └── (misma estructura + lib/{broker,outbox,sources}.ts + jobs/{etl,scheduler}.ts)
+│   └── api-gateway/                   ← Proxy interno (8080), sin DB ni estado
+│       └── src/{app,routes,config,proxy,middleware}/
 ├── apps/
 │   ├── web/                           ← Next.js SSR (App Router)
 │   │   ├── src/app/
@@ -465,6 +467,35 @@ Push → Lint → Test → Build → (Deploy)
   outbox tras cada upsert de agregados. Sin `RABBITMQ_URL` los eventos
   quedan `pending` sin interrumpir la operación.
 
+## API Gateway interno
+
+El gateway (8080) es un proxy sin estado entre el BFF y los servicios. **No es público**: el único
+punto público sigue siendo `apps/front` (Vercel), que es también el dueño de Auth0.
+
+- **Enrutamiento:** tabla declarativa `SERVICE_ROUTES` (`src/routes.ts`) con 11 prefijos
+  (`/property`, `/rate`, `/users`, `/booking`, `/front-desk`, `/housekeeping`, `/billing`,
+  `/channel-manager`, `/loyalty`, `/payments`, `/analytics`); el schema Zod de configuración se
+  deriva de esa misma tabla, así que agregar un servicio es una sola entrada.
+- **Borde:** exige `x-gateway-secret` (comparación en tiempo constante) salvo en `/health`;
+  descarta `cookie`, `x-service-key`, `x-loyalty-key`, `x-provider-key`, `x-internal-*` y
+  `x-gateway-secret`; regenera `x-request-id`; propaga `Authorization` intacto y `x-client-ip`
+  solo si el llamador está autenticado con el secreto. Única excepción: `x-provider-key` se
+  permite en `/channel-manager/*` porque el BFF es el dueño de la clave del simulador.
+- **Errores:** 504 en timeout, 502 si el upstream no responde, 401 sin secreto, 404 JSON para
+  prefijos desconocidos. Sin reintentos ni cache (las escrituras del flujo de reserva no son
+  idempotentes).
+- **Despertar servicios:** el primer request autenticado dispara en segundo plano un `/health` a los
+  11 upstreams (fire-and-forget, nunca bloquea la respuesta) y se repite como mucho cada
+  `WAKE_ALL_INTERVAL_MS` (default 30 min). Resuelve el 502 instantáneo del edge de Render cuando la
+  instancia free duerme. `WAKE_ALL_ENABLED=false` lo desactiva.
+- **Activación:** el BFF enruta por el gateway solo los servicios de `GATEWAY_SERVICES`
+  (lista separada por comas, incluida en el build). Vacía = rollback total a destinos directos.
+- **Fuera de alcance:** rate limiting distribuido (sin Redis). La instrumentación Prometheus
+  (`prom-client` + `/metrics`) ya existe en property-service y api-gateway; el resto de servicios
+  sigue observándose por logs estructurados y `/health` (ver README, «Observabilidad local»).
+
+Runbook: `docs/api-gateway-cutover.md`. Plan y decisiones: `docs/plan-api-gateway.md`.
+
 ## Plan de Evolución
 
 ### V1 (Actual)
@@ -481,5 +512,4 @@ Push → Lint → Test → Build → (Deploy)
 - Billing Service (folios, consume `checkout.completed`)
 - Analytics + Loyalty V2 (expiración de puntos, eventos desde user-service)
 - Redis (cache, sesiones)
-- API Gateway
 - Auth service (JWT, roles)

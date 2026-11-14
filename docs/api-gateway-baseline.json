@@ -1,0 +1,233 @@
+{
+  "generated_at": "2026-11-02T02:02:18.055Z",
+  "base_url": "http://localhost:3000",
+  "with_flows": false,
+  "summary": {
+    "total": 17,
+    "passed": 17,
+    "failed": 0
+  },
+  "results": [
+    {
+      "name": "warmup",
+      "method": "GET",
+      "path": "/api/warmup",
+      "expected": [
+        200
+      ],
+      "status": 200,
+      "latency_ms": 3762,
+      "ok": true,
+      "error": null,
+      "note": "ok,services"
+    },
+    {
+      "name": "login",
+      "method": "POST",
+      "path": "/api/auth/login",
+      "expected": [
+        200
+      ],
+      "status": 200,
+      "latency_ms": 1723,
+      "ok": true,
+      "error": null,
+      "note": "hs_access+hs_refresh"
+    },
+    {
+      "name": "auth.me",
+      "method": "GET",
+      "path": "/api/auth/me",
+      "expected": [
+        200
+      ],
+      "status": 200,
+      "latency_ms": 855,
+      "ok": true,
+      "error": null,
+      "note": "user,assignment"
+    },
+    {
+      "name": "auth.me (no session)",
+      "method": "GET",
+      "path": "/api/auth/me",
+      "expected": [
+        401
+      ],
+      "status": 401,
+      "latency_ms": 494,
+      "ok": true,
+      "error": null,
+      "note": "message"
+    },
+    {
+      "name": "property.hotels",
+      "method": "GET",
+      "path": "/api/property/hotels",
+      "expected": [
+        200
+      ],
+      "status": 200,
+      "latency_ms": 59,
+      "ok": true,
+      "error": null,
+      "note": "array(6)"
+    },
+    {
+      "name": "rate.rates",
+      "method": "GET",
+      "path": "/api/rate/rates?room_type_id=a1a1a1a1-a1a1-4a1a-8a1a-a1a1a1a1a1a1",
+      "expected": [
+        200
+      ],
+      "status": 200,
+      "latency_ms": 149,
+      "ok": true,
+      "error": null,
+      "note": "array(1)"
+    },
+    {
+      "name": "users.staff",
+      "method": "GET",
+      "path": "/api/users/staff",
+      "expected": [
+        200
+      ],
+      "status": 200,
+      "latency_ms": 69,
+      "ok": true,
+      "error": null,
+      "note": "array(16)"
+    },
+    {
+      "name": "users.staff (no session)",
+      "method": "GET",
+      "path": "/api/users/staff",
+      "expected": [
+        401
+      ],
+      "status": 401,
+      "latency_ms": 38,
+      "ok": true,
+      "error": null,
+      "note": "error,message,statusCode"
+    },
+    {
+      "name": "booking.list",
+      "method": "GET",
+      "path": "/api/booking/bookings?hotel_id=11111111-1111-4111-8111-111111111111",
+      "expected": [
+        200
+      ],
+      "status": 200,
+      "latency_ms": 213,
+      "ok": true,
+      "error": null,
+      "note": "array(12)"
+    },
+    {
+      "name": "front-desk.arrivals",
+      "method": "GET",
+      "path": "/api/front-desk/arrivals?hotel_id=11111111-1111-4111-8111-111111111111&date=2026-11-02",
+      "expected": [
+        200
+      ],
+      "status": 200,
+      "latency_ms": 142,
+      "ok": true,
+      "error": null,
+      "note": "array(0)"
+    },
+    {
+      "name": "housekeeping.tasks",
+      "method": "GET",
+      "path": "/api/housekeeping/tasks?hotel_id=11111111-1111-4111-8111-111111111111",
+      "expected": [
+        200
+      ],
+      "status": 200,
+      "latency_ms": 194,
+      "ok": true,
+      "error": null,
+      "note": "array(5)"
+    },
+    {
+      "name": "billing.folios",
+      "method": "GET",
+      "path": "/api/billing/folios?hotel_id=11111111-1111-4111-8111-111111111111",
+      "expected": [
+        200
+      ],
+      "status": 200,
+      "latency_ms": 145,
+      "ok": true,
+      "error": null,
+      "note": "array(12)"
+    },
+    {
+      "name": "loyalty.levels",
+      "method": "GET",
+      "path": "/api/loyalty/levels",
+      "expected": [
+        200
+      ],
+      "status": 200,
+      "latency_ms": 36,
+      "ok": true,
+      "error": null,
+      "note": "data"
+    },
+    {
+      "name": "payments.checkout.missing",
+      "method": "GET",
+      "path": "/api/payments/checkout/00000000-0000-4000-8000-000000000000",
+      "expected": [
+        404
+      ],
+      "status": 404,
+      "latency_ms": 298,
+      "ok": true,
+      "error": null,
+      "note": "error,message,statusCode"
+    },
+    {
+      "name": "analytics.dashboard",
+      "method": "GET",
+      "path": "/api/analytics/dashboard/11111111-1111-4111-8111-111111111111?from=2026-10-26&to=2026-11-03",
+      "expected": [
+        200
+      ],
+      "status": 200,
+      "latency_ms": 156,
+      "ok": true,
+      "error": null,
+      "note": "data"
+    },
+    {
+      "name": "simulator.unauthorized",
+      "method": "POST",
+      "path": "/api/simulator/reservations",
+      "expected": [
+        403
+      ],
+      "status": 403,
+      "latency_ms": 702,
+      "ok": true,
+      "error": null,
+      "note": "message"
+    },
+    {
+      "name": "unknown.prefix",
+      "method": "GET",
+      "path": "/api/does-not-exist/probe",
+      "expected": [
+        404
+      ],
+      "status": 404,
+      "latency_ms": 10840,
+      "ok": true,
+      "error": null,
+      "note": "<!DOCTYPE html><html lang=\"es\"><head><meta charSet=\"utf-8\"/><meta name=\"viewport"
+    }
+  ]
+}

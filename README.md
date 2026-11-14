@@ -112,7 +112,7 @@ docker compose down
 | Herramienta | URL | Credenciales | Qué muestra |
 |-------------|-----|--------------|-------------|
 | RabbitMQ Management | `http://localhost:15672` | `guest` / `guest` | Exchange `hotelsync.events`, colas `front-desk.arrivals`, `housekeeping.tasks`, `billing.folio` y `rate-availability.physical-rooms` |
-| Adminer (bases del compose) | `http://localhost:8080` | Sistema `PostgreSQL`, usuario `hotelsync`, clave `hotelsync_dev` | Tablas `bookings`, `event_outbox`, `arrivals`, `cleaning_tasks`, `folios`, `invoices`, `occupancy_daily`, etc. |
+| Adminer (bases del compose) | `http://localhost:8082` | Sistema `PostgreSQL`, usuario `hotelsync`, clave `hotelsync_dev` | Tablas `bookings`, `event_outbox`, `arrivals`, `cleaning_tasks`, `folios`, `invoices`, `occupancy_daily`, etc. |
 
 Servidores en Adminer (red interna de compose, puerto `5432`):
 
@@ -334,6 +334,47 @@ docker exec hotelsync-analytics-service-1 node dist/jobs/etl.js --from=2026-09-2
 
 El dashboard de revenue vive en `/admin/analytics` (rol `MANAGER` o `SUPER_ADMIN`).
 
+### API Gateway interno (puerto 8080)
+
+El gateway no es público: vive detrás del BFF. El front (`apps/front`) reescribe `/api/<servicio>/*`
+hacia `GATEWAY_URL/<servicio>/*` solo para los servicios listados en `GATEWAY_SERVICES`, e inyecta
+`x-gateway-secret` y `x-client-ip`. El gateway valida el secreto, descarta cabeceras internas
+(`cookie`, `x-service-key`, `x-provider-key`, `x-internal-*`) y reenvía el resto tal cual, incluido
+`Authorization`. El front sigue siendo el único punto público y el dueño de Auth0.
+
+```
+navegador → Vercel (apps/front) → /api/<servicio>/* → gateway (8080) → servicio
+```
+
+- Local: `docker compose up -d api-gateway` (escucha en `http://localhost:8080`, `/health` incluido).
+  El compose define `GATEWAY_SHARED_SECRET=hotelsync-dev-gateway-secret-change-me`; el front debe usar el
+  mismo valor en `GATEWAY_SHARED_SECRET` (Adminer queda en `http://localhost:8082`).
+- **Despertar servicios:** el primer request autenticado que cruza el gateway dispara en segundo plano un
+  `GET /health` a los 11 servicios (los free de Render devuelven 502 mientras arrancan). Se repite como
+  mucho cada `WAKE_ALL_INTERVAL_MS` (default 30 min). Se controla con `WAKE_ALL_ENABLED` y
+  `WAKE_ALL_TIMEOUT_MS`. El log `wake.broadcast` separa `waking` (502/503/504 del edge: el arranque ya
+  se disparó) de `failed` (red, timeout o status inesperado).
+- Rollback: `GATEWAY_SERVICES=""` en el BFF y redeploy → vuelve a destinos directos.
+- Runbook completo: `docs/api-gateway-cutover.md`. Plan: `docs/plan-api-gateway.md`.
+
+### Observabilidad local (Prometheus + Grafana)
+
+```bash
+npm run monitoring:up     # Prometheus + Grafana + blackbox-exporter
+npm run monitoring:logs
+npm run monitoring:down
+```
+
+| Herramienta | URL | Credenciales | Qué muestra |
+|-------------|-----|--------------|-------------|
+| Prometheus | `http://localhost:9090` | — | Targets, consultas ad-hoc y reglas |
+| Grafana | `http://localhost:3030` | `admin` / `admin` | Dashboard **HotelSync — Overview** (carpeta `HotelSync`) |
+
+- **Job `hotelsync-health`:** blackbox-exporter hace `GET /health` a los 11 servicios y al gateway (12 targets), con `probe_success`, `probe_duration_seconds` y `probe_http_status_code`. El gateway se sondea en `8080`; si otra app local ocupa ese puerto, el probe da falso positivo (responde 200 a cualquier ruta).
+- **Job `hotelsync-metrics`:** scrape de `/metrics` (prom-client) en `property-service:3001`, `rate-availability-service:3002`, `user-service:3003`, `booking-service:3004`, `front-desk-service:3005` y `api-gateway:8080`. Métricas: `hotelsync_http_requests_total` y `hotelsync_http_request_duration_seconds` (etiquetas `method`, `route` normalizada, `status`), `hotelsync_http_requests_in_flight`, y en los servicios con outbox (`property`, `rate`, `booking`, `front-desk`) `hotelsync_outbox_pending_events` + `hotelsync_broker_connected`.
+- **Alcance actual:** pilotos en property, rate-availability, user, booking, front-desk y api-gateway (19 targets en total). Faltan housekeeping, billing, channel-manager, loyalty, payment y analytics; el patrón a copiar es `src/lib/metrics.ts` (con `ROUTE_PREFIXES` del servicio) + `app.use(httpMetrics)` + `GET /metrics` antes de `requireGateway`. Si un middleware rechaza antes de casar ruta, la etiqueta cae al prefijo montado (p. ej. `/v1/auth`) en vez de `unmatched`.
+- `/metrics` se monta antes de `requireGateway`, así que queda accesible sin secreto: aceptable en local; en producción conviene restringirlo a nivel de ingress/red.
+
 ### Modelo de Datos
 
 #### Property Service
@@ -428,6 +469,7 @@ El dashboard de revenue vive en `/admin/analytics` (rol `MANAGER` o `SUPER_ADMIN
 | Front Desk Service | Render | 3005 | `https://hotelsync-front-desk-service.onrender.com` |
 | Housekeeping Service | Render | 3006 | `https://hotelsync-housekeeping-service.onrender.com` |
 | Billing Service | Render | 3007 | `https://hotelsync-billing-service.onrender.com` |
+| API Gateway (interno, detrás del BFF) | Render | 8080 | `https://hotelsync-api-gateway-tu1c.onrender.com` |
 | Front único (público + /admin) | Vercel | — | `https://hotelsync-front.vercel.app` |
 
 ### Estado de producción (2026-10-05)

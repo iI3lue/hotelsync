@@ -6,7 +6,7 @@ Documentos extensos: README.md (instalación y endpoints), ARCHITECTURE.md (patr
 ## Estructura y puertos
 - services/property-service:3001 | rate-availability-service:3002 | user-service:3003 | booking-service:3004 | front-desk-service:3005 | housekeeping-service:3006 | billing-service:3007 | analytics-service:3011
 - apps/front:3000 (público + /admin) | apps/admin heredado
-- PostgreSQL 16 por servicio: 5432-5442 | RabbitMQ 5672/15672 (exchange hotelsync.events) | Redis 6379 | Adminer 8080
+- PostgreSQL 16 por servicio: 5432-5442 | RabbitMQ 5672/15672 (exchange hotelsync.events) | Redis 6379 | api-gateway 8080 | Adminer 8082
 - Estructura por servicio: src/{routes,controllers,services,validators,middleware}/index.ts + prisma/{schema,seed,migrations} + tests/
 
 ## Comandos (desde la raíz)

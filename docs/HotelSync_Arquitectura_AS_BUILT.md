@@ -49,11 +49,11 @@ Tabla de contenido
 
 HotelSync es una plataforma de gestión hotelera multi-propiedad construida como un conjunto de once microservicios backend, un frontend Next.js que actúa también como BFF y once bases PostgreSQL independientes. El sistema cubre el ciclo completo de una estancia: catálogo de hoteles y habitaciones, disponibilidad y tarifas, reserva, pago, check-in, check-out, limpieza, facturación, puntos de fidelidad, integración con canales OTA y analítica de ingresos. La comunicación síncrona ocurre por HTTP con JWT y claves de servicio; la comunicación asíncrona usa el exchange `hotelsync.events` de RabbitMQ con patrón outbox.
 
-Este documento es una fotografía **AS-BUILT**: describe lo que está implementado y desplegado al 30 de octubre de 2026, no un diseño ideal. El repositorio tiene 41 modelos Prisma distribuidos en once esquemas, 13 tipos de evento canónicos, nueve colas durables y 16 diagramas verificados. La versión 1.0 del documento (30 de agosto de 2026) describía nueve servicios, un API Gateway y un stack de observabilidad que nunca se implementaron; esta versión corrige esas afirmaciones y conserva el documento original sin modificarlo.
+Este documento es una fotografía **AS-BUILT**: describe lo que está implementado y desplegado al 30 de octubre de 2026, no un diseño ideal. El repositorio tiene 41 modelos Prisma distribuidos en once esquemas, 13 tipos de evento canónicos, nueve colas durables y 16 diagramas verificados. La versión 1.0 del documento (30 de agosto de 2026) describía nueve servicios, un API Gateway y un stack de observabilidad que nunca se implementaron; esta versión corrige esas afirmaciones y conserva el documento original sin modificarlo. **Actualización 2026-11-02:** se implementó un **API Gateway interno** (proxy sin estado, puerto 8080) detrás del BFF y el frontend enruta por él las diez familias de rutas; el BFF sigue siendo el único punto público y el dueño de Auth0. El stack de observabilidad (Prometheus/Grafana) sigue sin implementarse.
 
-La arquitectura implementada tiene tres decisiones estructurales. Primera: **una base de datos por servicio**, sin claves foráneas ni joins entre bases; las referencias cruzadas son UUID lógicos. Segunda: **BFF en Next.js** en lugar de API Gateway; los rewrites de `/api/*` inyectan el Bearer desde una cookie HttpOnly y evitan exponer el token a JavaScript. Tercera: **consistencia eventual mediante outbox y RabbitMQ**, con idempotencia explícita en los consumidores y una saga durable para confirmar inventario en rate-availability.
+La arquitectura implementada tiene tres decisiones estructurales. Primera: **una base de datos por servicio**, sin claves foráneas ni joins entre bases; las referencias cruzadas son UUID lógicos. Segunda: **BFF en Next.js** como punto público único; los rewrites de `/api/*` inyectan el Bearer desde una cookie HttpOnly y evitan exponer el token a JavaScript. Desde 2026-11-02 esos rewrites apuntan a un **proxy interno** (`api-gateway`) que exige un secreto compartido, descarta cabeceras internas y reenvía a los servicios. Tercera: **consistencia eventual mediante outbox y RabbitMQ**, con idempotencia explícita en los consumidores y una saga durable para confirmar inventario en rate-availability.
 
-La plataforma está desplegada en servicios gestionados: once web services en Render (Oregon, plan gratuito), el frontend en Vercel, once proyectos Neon en `us-west-2`, RabbitMQ en CloudAMQP y Auth0 con Google como proveedor federado. La integración continua se resolvió con un workflow raíz para los servicios con base de datos y un workflow reutilizable `ci-v1` consumido por los once repositorios split; el informe del 27 de octubre registra 399 tests en 48 suites, todos en verde. El despliegue no lo ejecuta GitHub Actions: lo hacen las integraciones nativas de Render y Vercel al recibir un push a `main`.
+La plataforma está desplegada en servicios gestionados: once web services de dominio más el api-gateway en Render (Oregon, plan gratuito), el frontend en Vercel, once proyectos Neon en `us-west-2`, RabbitMQ en CloudAMQP y Auth0 con Google como proveedor federado. La integración continua se resolvió con un workflow raíz para los servicios con base de datos y un workflow reutilizable `ci-v1` consumido por los once repositorios split; el informe del 27 de octubre registra 399 tests en 48 suites, todos en verde. El despliegue no lo ejecuta GitHub Actions: lo hacen las integraciones nativas de Render y Vercel al recibir un push a `main`.
 
 El estado real incluye deuda que no debe ocultarse. Al 30 de octubre, la cuota mensual de CloudAMQP está agotada: los health checks de housekeeping y billing se cuelgan porque el broker reintenta la conexión sin límite, aunque sus APIs reales responden con 401 en menos de 0.6 segundos. El split de analytics desplegado todavía no aplica aislamiento por hotel, mientras que el monorepo ya contiene el arreglo sin commitear. No hay staging, observabilidad centralizada, rate limiting general, MFA ni circuit breaker. Estas brechas se documentan en la sección 14 con impacto, evidencia y siguiente acción.
 
@@ -117,7 +117,7 @@ Las cifras de tests corresponden al informe del 27-oct-2026 y a los workflows de
 El documento original se conserva en `docs/HotelSync_Arquitectura.docx` y `docs/HotelSync_Arquitectura.pdf`, con fecha 30-ago-2026. Esta versión 2.0 no lo reescribe: lo reemplaza como fuente de verdad para el estado actual. Las diferencias principales son:
 
 - Se documentan once servicios, no nueve: se incorporan payment y channel-manager.
-- Se elimina el API Gateway del diseño: el BFF de Next.js cumple esa función.
+- Se elimina el API Gateway **público** del diseño: el BFF de Next.js es el punto público. Desde 2026-11-02 existe un gateway interno (proxy sin estado) detrás del BFF, que no reemplaza al BFF ni mueve auth ni cookies.
 - Redis se describe como caché opcional de rate-availability, no como componente obligatorio.
 - Se reconoce que no hay Prometheus, Grafana, staging ni despliegue por Docker en producción.
 - Se documentan los eventos, las colas y el outbox realmente implementados.
@@ -162,7 +162,8 @@ La separación añadió dos bases de datos, dos despliegues y dos flujos asíncr
 
 | Componente | Estado | Razón |
 |---|---|---|
-| API Gateway dedicado | [D] descartado | El BFF de Next.js resuelve rewrites, cookies y autorización de UI con menos infraestructura |
+| API Gateway público | [D] descartado | El BFF de Next.js resuelve rewrites, cookies y autorización de UI con menos infraestructura |
+| API Gateway interno (proxy) | [I] implementado 2026-11-02 | Enrutamiento y borde uniforme sin exponer otro servicio: vive detrás del BFF y exige secreto compartido |
 | Kubernetes / service mesh | [D] descartado | Inviable en free tier y sin necesidad operativa para once servicios |
 | Prometheus + Grafana | [D] descartado | Se usan logs de Render/Vercel; no hay métricas históricas |
 | Staging | [D] descartado | Un solo entorno; los splits despliegan desde `main` |
@@ -209,7 +210,7 @@ La secuencia completa, con actores y eventos, se muestra en la Figura 14.
 
 Es tan importante decir qué hay como decir qué no hay. Al 30-oct-2026:
 
-- **No hay API Gateway.** El frontend Next.js hace de BFF con rewrites. No hay Kong, NGINX, Traefik ni Envoy.
+- **No hay API Gateway público.** El frontend Next.js hace de BFF con rewrites. No hay Kong, NGINX, Traefik ni Envoy. Desde 2026-11-02 sí hay un **gateway interno** (proxy Express sin estado) entre el BFF y los servicios: no es público, no maneja sesiones y solo acepta llamadas con `x-gateway-secret`.
 - **No hay service discovery.** Las URLs de los servicios se inyectan por variables de entorno; no hay registro ni balanceo.
 - **No hay staging.** Render y Vercel despliegan desde `main`; no hay un entorno intermedio con datos separados.
 - **No hay observabilidad centralizada.** No hay Prometheus, Grafana, OpenTelemetry, Sentry ni agregación de logs. Se usan los logs de Render y Vercel.
@@ -225,6 +226,10 @@ Estas ausencias no son necesariamente fallas para un proyecto académico, pero d
 Un API Gateway centralizaría autenticación, rate limiting, enrutamiento y observabilidad. El equipo eligió el BFF de Next.js por tres razones. Primera: el frontend ya necesita un servidor para Auth0 (intercambio de código, cookies HttpOnly, refresh) y para ocultar claves de servicio como `CHANNEL_MANAGER_SIMULATOR_KEY`. Segunda: los rewrites de Next permiten mapear `/api/property/*` a `http://property-service:3001/v1/*` sin infraestructura adicional. Tercera: el middleware puede proteger rutas `/admin` por rol antes de renderizar, lo que mejora la experiencia y evita parpadeos.
 
 El costo es que el BFF no es un gateway completo: no hace rate limiting global, no agrega métricas, no balancea, no aplica políticas uniformes a todos los servicios y no puede renovar el token en el rewrite (las cookies seteadas sobre `NextResponse.next()` se pierden). La renovación se movió a `/api/auth/refresh`, `/api/auth/me` y al retry del cliente. Esta es una decisión consciente con tradeoffs, no una omisión.
+
+**Actualización 2026-11-02.** Se agregó un gateway interno como proxy (Express, sin estado): exige `x-gateway-secret` (salvo `/health`), descarta `cookie`, `x-service-key`, `x-loyalty-key`, `x-provider-key` y `x-internal-*`, regenera `x-request-id`, propaga la IP real del cliente y enruta por una tabla declarativa de once prefijos. No hace autenticación (cada servicio valida el JWT), no hace rate limiting distribuido y no expone métricas: solo uniforma el borde y centraliza el enrutamiento y los logs. El BFF conserva cookies, Auth0 y la autorización de UI; `GATEWAY_SERVICES=""` devuelve todo el tráfico a destinos directos.
+
+Además, el gateway **despierta los servicios free** de Render: el primer request autenticado dispara en segundo plano un `GET /health` a los once upstreams (ventana `WAKE_ALL_INTERVAL_MS`, 30 min), porque con la instancia dormida el edge de Render responde 502 en decenas de milisegundos. El front reintenta los GET ante 502/503/504 (3 intentos, 1 s/3 s/7 s) para cubrir el request que dispara el despertar.
 
 ## 3.6 Tradeoffs principales
 
@@ -548,7 +553,7 @@ El frontend es una sola aplicación Next.js 15 con App Router, React 19, TypeScr
 - **Portal público:** inicio, búsqueda, detalle de hotel, disponibilidad, reserva, mis reservas, cuenta (crear, entrar, perfil, recuperar, restablecer), privacidad y términos.
 - **Panel `/admin`:** dashboard, analytics, hoteles (lista, alta, detalle, inventario, habitaciones), housekeeping, recepción, simulador de canal y personal.
 
-Las páginas usan Client Components para interacción y llaman a `/api/*` del mismo origen. El servidor de Next hace de BFF: reescribe diez prefijos hacia los servicios y conserva las cookies HttpOnly. La ruta `/api/simulator/reservations` no es un rewrite: es un Route Handler que exige `SUPER_ADMIN` e inyecta `x-provider-key` del lado servidor. `/api/rates` y `/api/warmup` son handlers auxiliares.
+Las páginas usan Client Components para interacción y llaman a `/api/*` del mismo origen. El servidor de Next hace de BFF: reescribe diez prefijos hacia los servicios (directo o vía `GATEWAY_URL` según `GATEWAY_SERVICES`) y conserva las cookies HttpOnly. La ruta `/api/simulator/reservations` no es un rewrite: es un Route Handler que exige `SUPER_ADMIN` e inyecta `x-provider-key` del lado servidor; cuando `channel-manager` está en `GATEWAY_SERVICES` llama a `GATEWAY_URL/channel-manager/*` y agrega `x-gateway-secret`. `/api/rates` y `/api/warmup` son handlers auxiliares.
 
 ## 7.2 Rewrites del BFF
 
@@ -591,13 +596,13 @@ La auditoría `AUDITORIA-UI-2026-10-26.md` identificó diez hallazgos (H1–H10)
 
 El monorepo usa npm workspaces con Node.js 20 o superior. El flujo estándar es:
 
-1. `npm run db:up` levanta 25 contenedores: 11 bases PostgreSQL, RabbitMQ, Redis, Adminer y los 11 servicios (opcional; los servicios también se corren con `npm run dev:*`).
+1. `npm run db:up` levanta 26 contenedores: 11 bases PostgreSQL, RabbitMQ, Redis, Adminer, el api-gateway y los 11 servicios (opcional; los servicios también se corren con `npm run dev:*`).
 2. Copiar `.env.example` a `.env` en cada servicio y en el frontend.
 3. `npm install` en la raíz.
 4. `npm run migrate:<servicio>` y `npm run seed:<servicio>` para preparar cada base.
 5. `npm run dev:<servicio>` o `npm run dev:front`.
 
-Los puertos locales son 3001–3011 para los servicios, 3000 para el front, 5432–5442 para las bases, 5672/15672 para RabbitMQ, 6379 para Redis y 8080 para Adminer. La asignación exacta de bases es: property 5432, rate 5433, booking 5434, front-desk 5435, housekeeping 5436, billing 5437, user 5438, channel-manager 5439, loyalty 5440, payment 5441, analytics 5442.
+Los puertos locales son 3001–3011 para los servicios, 3000 para el front, 5432–5442 para las bases, 5672/15672 para RabbitMQ, 6379 para Redis, 8080 para el api-gateway y 8082 para Adminer. La asignación exacta de bases es: property 5432, rate 5433, booking 5434, front-desk 5435, housekeeping 5436, billing 5437, user 5438, channel-manager 5439, loyalty 5440, payment 5441, analytics 5442.
 
 ## 8.2 Configuración
 
@@ -608,6 +613,7 @@ Cada servicio valida al arranque las variables que no puede inferir. Las princip
 - `RABBITMQ_URL` en los servicios que publican o consumen; sin ella, el outbox queda `pending` y la API sigue.
 - `REDIS_URL` opcional en rate-availability.
 - URLs de otros servicios (`BOOKING_SERVICE_URL`, `RATE_SERVICE_URL`, `USER_SERVICE_URL`, `PROPERTY_SERVICE_URL`, `CHANNEL_MANAGER_API_URL`).
+- En el gateway: `GATEWAY_SHARED_SECRET`, las once `*_SERVICE_URL` (`CHANNEL_MANAGER_SERVICE_URL` termina en `/v1/simulator`), `UPSTREAM_TIMEOUT_MS` (45000 en producción por los cold starts de Render) y `PORT`. En el BFF: `GATEWAY_URL`, `GATEWAY_SHARED_SECRET` y `GATEWAY_SERVICES` (vacía = rollback total).
 - Claves de servicio (`SERVICE_API_KEY`, `BOOKING_SERVICE_KEY`, `PAYMENT_SERVICE_KEY`, `LOYALTY_SERVICE_KEY`, `CHANNEL_MANAGER_SERVICE_KEY`, `CHANNEL_MANAGER_SIMULATOR_KEY`).
 - `DATABASE_URL_BOOKING` y `DATABASE_URL_PROPERTY` en analytics.
 
@@ -621,7 +627,7 @@ La sincronización monorepo → split es manual y selectiva: se copian `src`, `t
 
 ## 8.4 Docker
 
-`docker-compose.yml` define 25 servicios y volúmenes para persistencia. Se usa para desarrollo local y para pruebas manuales; no es el mecanismo de despliegue. Render ejecuta Node.js nativo con `npm ci && npx prisma generate && npm run build`, y arranca con `npx prisma migrate deploy && npm start`. Vercel construye el front con `next build`. No hay imágenes publicadas en un registry ni un pipeline de contenedores.
+`docker-compose.yml` define 26 servicios y volúmenes para persistencia. Se usa para desarrollo local y para pruebas manuales; no es el mecanismo de despliegue. Render ejecuta Node.js nativo con `npm ci && npx prisma generate && npm run build`, y arranca con `npx prisma migrate deploy && npm start` (el api-gateway usa `npm start` sin Prisma). Vercel construye el front con `next build`. No hay imágenes publicadas en un registry ni un pipeline de contenedores.
 
 ## 8.5 Ambientes
 
@@ -676,7 +682,7 @@ El arranque de Render ejecuta `npx prisma migrate deploy && npm start`; el build
 
 ![Figura 16. Topología de despliegue en producción al 30-oct-2026.](diagramas/png/despliegue-produccion.png){width=6.2in}
 
-La topología es deliberadamente simple: un navegador habla con Vercel por HTTPS; Vercel reescribe `/api/*` hacia los servicios de Render; cada servicio habla con su base Neon, con CloudAMQP si tiene mensajería y con Auth0 solo en el caso de user-service. No hay VPC, red privada, API Gateway ni malla de servicios. Las llamadas entre servicios viajan por internet público y se protegen con JWT o claves de servicio.
+La topología es deliberadamente simple: un navegador habla con Vercel por HTTPS; Vercel reescribe `/api/*` hacia el api-gateway de Render (o directo al servicio si ese prefijo no está en `GATEWAY_SERVICES`), y el gateway reenvía al servicio con un secreto compartido; cada servicio habla con su base Neon, con CloudAMQP si tiene mensajería y con Auth0 solo en el caso de user-service. No hay VPC, red privada ni malla de servicios. Las llamadas entre servicios viajan por internet público y se protegen con JWT o claves de servicio.
 
 Las consecuencias operativas son concretas:
 
@@ -852,7 +858,7 @@ Esta sección resume las decisiones que explican la forma actual del sistema. No
 | ADR-09 | Pago simulado en payment-service | Alcance académico sin pasarela real | No hay cobro real; el flujo sí es representativo |
 | ADR-10 | Channel manager con snapshots y simulador | No hay contratos reales de OTA | Proyecciones y simulación, no integración OTA real |
 | ADR-11 | Frontend único con `/admin` y roles | Menos repos y una sola experiencia | Un deploy afecta portal y panel a la vez |
-| ADR-12 | Sin API Gateway ni malla de servicios | Costo y complejidad para el alcance | Servicios públicos; seguridad en cada servicio |
+| ADR-12 | Sin API Gateway público ni malla de servicios | Costo y complejidad para el alcance | Servicios públicos; seguridad en cada servicio. En 2026-11-02 se agregó un proxy interno detrás del BFF, que no cambia el ADR |
 
 ## 13.1 Outbox transaccional (ADR-04)
 
@@ -890,7 +896,7 @@ Analytics no replica el modelo transaccional ni hace joins cross-DB. Lee booking
 
 | Capacidad | Estado | Nota |
 |---|---|---|
-| API Gateway | No implementado | Los servicios son públicos; no hay punto único de entrada |
+| API Gateway | Parcial | Proxy interno implementado (2026-11-02) detrás del BFF; faltan rate limiting, métricas y un punto público propio |
 | Prometheus/Grafana | No implementado | Solo logs de Render/Vercel |
 | Staging | No implementado | No hay ambiente intermedio |
 | MFA | No implementado | Auth0/Google sin segundo factor |
@@ -926,7 +932,7 @@ Analytics no replica el modelo transaccional ni hace joins cross-DB. Lee booking
 
 **Fase 0 — estabilización (0–2 semanas).** Restablecer el broker o migrar; desplegar el fix de analytics; cerrar las brechas de autorización de property; sincronizar y desplegar el front; commitear los fixes pendientes; agregar tests de aislamiento por hotel.
 
-**Fase 1 — endurecimiento (1–2 meses).** API Gateway o reverse proxy con rate limiting; Helmet, CSP y CORS explícito; DLQ y política de reintentos; staging con datos sintéticos; smoke E2E en CI; protección de rama que exija el check; rotación documentada de secretos.
+**Fase 1 — endurecimiento (1–2 meses).** Rate limiting distribuido en el api-gateway (Redis); Helmet, CSP y CORS explícito; DLQ y política de reintentos; staging con datos sintéticos; smoke E2E en CI; protección de rama que exija el check; rotación documentada de secretos.
 
 **Fase 2 — evolución (3–6 meses).** Observabilidad con métricas, trazas y alertas; registro de esquemas de eventos; auditoría de acciones; MFA para staff; pasarela de pago real; integración OTA real; backups y restauración probados.
 
@@ -1198,9 +1204,10 @@ Las rutas de escritura de hoteles, tipos y políticas no aplican `requireRole`; 
 | Loyalty | `iI3lue/hotelsync-loyalty-service` | `https://hotelsync-loyalty-service.onrender.com` |
 | Payment | `iI3lue/hotelsync-payment-service` | `https://hotelsync-payment-service.onrender.com` |
 | Analytics | `iI3lue/hotelsync-analytics-service` | `https://hotelsync-analytics-service.onrender.com` |
+| API Gateway (interno) | `iI3lue/hotelsync-api-gateway` | `https://hotelsync-api-gateway-tu1c.onrender.com` |
 | Frontend | `iI3lue/hotelsync-front` | `https://hotelsync-front.vercel.app` |
 
-Infraestructura: Render (Oregon, free), Vercel (front), Neon (`aws-us-west-2`, 11 proyectos), CloudAMQP (RabbitMQ), Auth0 (Google).
+Infraestructura: Render (Oregon, free), Vercel (front), Neon (`aws-us-west-2`, 11 proyectos), CloudAMQP (RabbitMQ), Auth0 (Google). El api-gateway no tiene base de datos ni estado y solo es alcanzable con `x-gateway-secret`; su `UPSTREAM_TIMEOUT_MS` es 45000 por los cold starts.
 
 # Anexo E. Evidencia de CI
 
@@ -1225,7 +1232,7 @@ Los enlaces completos están en la sección de referencias. El fallo controlado 
 
 ## F.1 Arranque local
 
-1. `npm run db:up` (25 contenedores: 11 bases, RabbitMQ, Redis, Adminer y 11 servicios).
+1. `npm run db:up` (26 contenedores: 11 bases, RabbitMQ, Redis, Adminer, api-gateway y 11 servicios).
 2. Copiar `.env.example` a `.env` en cada servicio y en el front; completar `DATABASE_URL` y `AUTH_JWT_SECRET`.
 3. `npm install` en la raíz.
 4. Ejecutar `npm run migrate:<servicio>` y `npm run seed:<servicio>` para los once servicios.
