@@ -100,3 +100,16 @@ export function clearSessionCookies(response: NextResponse): void {
 export function errorJson(message: string, status: number): NextResponse {
   return NextResponse.json({ message }, { status });
 }
+
+/**
+ * Cabeceras para las llamadas server-side directas a user-service. Las
+ * rutas del BFF no pasan por el rewrite de Next ni por el middleware, así
+ * que el secreto del gateway se adjunta aquí. Sin secreto configurado no
+ * se envía nada (modo warn/off sigue funcionando).
+ */
+export function userApiHeaders(
+  extra: Record<string, string> = {}
+): Record<string, string> {
+  const secret = process.env.GATEWAY_SHARED_SECRET;
+  return secret ? { ...extra, "x-gateway-secret": secret } : { ...extra };
+}
