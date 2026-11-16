@@ -38,16 +38,31 @@ export interface ProxyTarget {
   timeoutMs: number;
   allowedHeaders?: readonly string[];
   gatewaySecret?: string;
+  maxBodyBytes?: number;
 }
+
+const DEFAULT_MAX_BODY_BYTES = 1_048_576;
+const MAX_URL_LENGTH = 2_048;
+
+class PayloadTooLargeError extends Error {}
 
 function errorJson(res: Response, statusCode: number, error: string, message: string): void {
   res.status(statusCode).json({ error, message, statusCode });
 }
 
-async function readBody(req: Request): Promise<Buffer> {
+async function readBody(req: Request, maxBytes: number): Promise<Buffer> {
+  const declared = Number(req.headers["content-length"] ?? 0);
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    throw new PayloadTooLargeError();
+  }
+
   const chunks: Buffer[] = [];
+  let total = 0;
   for await (const chunk of req) {
-    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+    const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
+    total += buffer.length;
+    if (total > maxBytes) throw new PayloadTooLargeError();
+    chunks.push(buffer);
   }
   return Buffer.concat(chunks);
 }
@@ -112,9 +127,15 @@ export function createProxyRouter(target: ProxyTarget): Router {
   const allowedHeaders = new Set(
     (target.allowedHeaders ?? []).map((name) => name.toLowerCase())
   );
+  const maxBodyBytes = target.maxBodyBytes ?? DEFAULT_MAX_BODY_BYTES;
 
   router.all("*", (req: Request, res: Response) => {
     void (async () => {
+      if (req.originalUrl.length > MAX_URL_LENGTH) {
+        errorJson(res, 414, "UriTooLong", "URL demasiado larga");
+        return;
+      }
+
       const requestId = String(res.locals.requestId ?? "");
       const forwardedClientIp = req.header("x-client-ip");
       const clientIp =
@@ -126,9 +147,18 @@ export function createProxyRouter(target: ProxyTarget): Router {
       let body: Buffer | undefined;
       if (req.method !== "GET" && req.method !== "HEAD") {
         try {
-          body = await readBody(req);
-        } catch {
-          errorJson(res, 400, "BadRequest", "No se pudo leer el cuerpo de la petición");
+          body = await readBody(req, maxBodyBytes);
+        } catch (err) {
+          if (err instanceof PayloadTooLargeError) {
+            errorJson(
+              res,
+              413,
+              "PayloadTooLarge",
+              "Cuerpo de la petición demasiado grande"
+            );
+          } else {
+            errorJson(res, 400, "BadRequest", "No se pudo leer el cuerpo de la petición");
+          }
           return;
         }
       }

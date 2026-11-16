@@ -21,7 +21,9 @@ const envSchema = z.object({
     .max(86_400_000)
     .default(1_800_000),
   WAKE_ALL_TIMEOUT_MS: z.coerce.number().int().min(100).max(120_000).default(60_000),
-  GATEWAY_SHARED_SECRET: z.string().min(16),
+  MAX_BODY_BYTES: z.coerce.number().int().min(1_024).max(10_485_760).default(1_048_576),
+  RATE_LIMIT_PER_MINUTE: z.coerce.number().int().min(0).max(100_000).default(600),
+  GATEWAY_SHARED_SECRET: z.string().min(32),
   ...serviceUrlShape,
 });
 

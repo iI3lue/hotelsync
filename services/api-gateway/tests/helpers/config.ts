@@ -20,6 +20,8 @@ export function testConfig(overrides: Partial<GatewayConfig> = {}): GatewayConfi
     WAKE_ALL_ENABLED: false,
     WAKE_ALL_INTERVAL_MS: 1_800_000,
     WAKE_ALL_TIMEOUT_MS: 5_000,
+    MAX_BODY_BYTES: 1_048_576,
+    RATE_LIMIT_PER_MINUTE: 600,
     GATEWAY_SHARED_SECRET: TEST_SECRET,
     ...serviceUrls(),
     ...overrides,

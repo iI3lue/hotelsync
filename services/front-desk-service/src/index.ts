@@ -8,12 +8,21 @@ import incidentsRouter from "./routes/incidents.js";
 import { startConsumer } from "./lib/consumer.js";
 import { startOutboxDispatcher } from "./lib/outbox.js";
 import { httpMetrics, metricsHandler } from "./lib/metrics.js";
+import {
+  assertProductionSecrets,
+  metricsGuard,
+  securityHeaders,
+} from "./lib/security.js";
+
+assertProductionSecrets();
 
 const app = express();
 const PORT = process.env.PORT || 3005;
 
+app.set("trust proxy", 1);
+app.use(securityHeaders);
 app.use(httpMetrics);
-app.get("/metrics", metricsHandler);
+app.get("/metrics", metricsGuard(), metricsHandler);
 app.use(requireGateway);
 
 app.use(express.json());

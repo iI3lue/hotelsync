@@ -24,3 +24,8 @@ export function checkRateLimit(
 export function clearRateLimits(): void {
   hits.clear();
 }
+
+/** Un login exitoso no debe seguir consumiendo el cupo del intento. */
+export function clearRateLimit(key: string): void {
+  hits.delete(key);
+}

@@ -32,6 +32,24 @@ export function errorHandler(
   const httpErr = err as HttpLikeError;
   const status = httpErr.statusCode ?? httpErr.status;
 
+  if (httpErr.type === "entity.parse.failed") {
+    res.status(400).json({
+      error: "BadRequest",
+      message: "Cuerpo JSON inválido",
+      statusCode: 400,
+    });
+    return;
+  }
+
+  if (httpErr.type === "entity.too.large") {
+    res.status(413).json({
+      error: "PayloadTooLarge",
+      message: "Cuerpo de la petición demasiado grande",
+      statusCode: 413,
+    });
+    return;
+  }
+
   if (status && status >= 400 && status < 500 && httpErr.expose) {
     res.status(status).json({
       error: "Bad Request",

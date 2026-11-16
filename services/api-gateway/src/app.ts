@@ -5,11 +5,15 @@ import { requestContext } from "./middleware/request-context.js";
 import { createProxyRouter } from "./proxy/proxy-router.js";
 import { createWakeBroadcaster, healthUrl } from "./proxy/wake-broadcast.js";
 import { httpMetrics, metricsHandler } from "./lib/metrics.js";
+import { createRateLimiter } from "./middleware/rate-limit.js";
+import { metricsGuard, securityHeaders } from "./security.js";
 import { SERVICE_ROUTES } from "./routes.js";
 
 export function createApp(config: GatewayConfig) {
   const app = express();
   app.disable("x-powered-by");
+  app.set("trust proxy", 1);
+  app.use(securityHeaders);
 
   const wakeBroadcaster = createWakeBroadcaster({
     targets: SERVICE_ROUTES.map(({ prefix, urlKey }) => ({
@@ -23,9 +27,17 @@ export function createApp(config: GatewayConfig) {
 
   app.use(requestContext);
 
+  app.use(
+    createRateLimiter({
+      limit: config.RATE_LIMIT_PER_MINUTE,
+      windowMs: 60_000,
+      exemptPaths: ["/health", "/metrics"],
+    })
+  );
+
   app.use(httpMetrics);
 
-  app.get("/metrics", metricsHandler);
+  app.get("/metrics", metricsGuard(), metricsHandler);
 
   app.get("/health", (_req, res) => {
     res.json({
@@ -54,6 +66,7 @@ export function createApp(config: GatewayConfig) {
         timeoutMs,
         allowedHeaders,
         gatewaySecret: config.GATEWAY_SHARED_SECRET,
+        maxBodyBytes: config.MAX_BODY_BYTES,
       })
     );
   }

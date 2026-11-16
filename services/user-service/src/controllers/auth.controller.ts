@@ -2,6 +2,8 @@ import { Request, Response, NextFunction } from "express";
 import { authService } from "../services/auth.service.js";
 import { passwordService } from "../services/password.service.js";
 import { AuthRequest } from "../middleware/auth.js";
+import { clearRateLimit } from "../lib/rate-limit.js";
+import { clientIp } from "../lib/security.js";
 
 export class AuthController {
   async register(req: Request, res: Response, next: NextFunction) {
@@ -16,6 +18,8 @@ export class AuthController {
   async login(req: Request, res: Response, next: NextFunction) {
     try {
       const result = await authService.login(req.body);
+      const email = String(req.body?.email ?? "").trim().toLowerCase();
+      clearRateLimit(`login:email:${email || "unknown"}`);
       res.json(result);
     } catch (err) {
       next(err);
@@ -60,7 +64,10 @@ export class AuthController {
 
   async resetPassword(req: Request, res: Response, next: NextFunction) {
     try {
-      const result = await passwordService.resetPassword(req.body, req.ip);
+      const result = await passwordService.resetPassword(
+        req.body,
+        clientIp(req, res)
+      );
       res.json(result);
     } catch (err) {
       next(err);
