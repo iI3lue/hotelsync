@@ -24,8 +24,12 @@
     "build": "npm run build --workspaces",
     "test": "npm run test --workspaces --if-present",
     "lint": "npm run lint --workspaces --if-present",
-    "db:up": "docker compose up -d",
+    "db:up": "docker compose up -d property-db rate-availability-db booking-db front-desk-db housekeeping-db billing-db user-db loyalty-db payment-db channel-manager-db analytics-db rabbitmq redis adminer",
     "db:down": "docker compose down",
+    "stack:up": "docker compose up -d --build",
+    "stack:down": "docker compose down",
+    "stack:ps": "docker compose ps",
+    "stack:logs": "docker compose logs -f --tail=100",
     "monitoring:up": "docker compose -f monitoring/docker-compose.yml up -d",
     "monitoring:down": "docker compose -f monitoring/docker-compose.yml down",
     "monitoring:logs": "docker compose -f monitoring/docker-compose.yml logs -f --tail=100",
@@ -50,7 +54,8 @@
     "seed:user": "npm run seed --workspace=services/user-service",
     "seed:loyalty": "npm run seed --workspace=services/loyalty-service",
     "seed:payment": "npm run seed --workspace=services/payment-service",
-    "seed:analytics": "npm run seed --workspace=services/analytics-service"
+    "seed:analytics": "npm run seed --workspace=services/analytics-service",
+    "security:preflight": "node scripts/security-preflight.mjs"
   },
   "engines": {
     "node": ">=20.0.0"
