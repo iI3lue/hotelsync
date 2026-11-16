@@ -71,3 +71,15 @@ los diffs.
    únicos.
 4. ~~Borrar `front-sync`~~: se decidió **conservarlo** (clon vaciado con el mismo remoto). Queda
    pendiente definir cuándo se hace push a los splits.
+
+## Hardening de seguridad (2026-11-16)
+
+- Portado a los 12 splits (`api-gateway`, `property`, `rate-availability`, `booking`,
+  `front-desk`, `user`, `housekeeping`, `billing`, `channel-manager`, `loyalty`, `payment`,
+  `analytics`): `securityHeaders`, `metricsGuard`, guard de secretos, rate limit de
+  login/registro, caps de body/URL, timeouts y `/metrics` con prom-client.
+- Gates en verde en cada split: `prisma generate`, `lint`, `test` y `build`;
+  `express` 4.22.3 / `qs` 6.16.2 en los locks. Los 6 nuevos suman 189 tests.
+- `security:preflight` agregado a cada split; sin push (deploys de Render siguen congelados).
+
+Detalle: `docs/seguridad-2026-11-16.md`.

@@ -45,8 +45,8 @@ cp .env.example services/front-desk-service/.env
 cp .env.example services/housekeeping-service/.env
 cp .env.example services/billing-service/.env
 
-# 3. Levantar bases de datos
-docker compose up -d
+# 3. Levantar bases de datos (Postgres + RabbitMQ + Redis + Adminer)
+npm run db:up
 
 # 4. Instalar dependencias
 npm install
@@ -77,35 +77,36 @@ npm run dev:billing      # Puerto 3007
 npm run dev:front        # Puerto 3000 (público + /admin)
 ```
 
-## Docker — Nivel 1 (bases + backends)
+## Docker — Nivel 2 (todo el backend en contenedores)
+
+`docker-compose.yml` ya define los 12 servicios de aplicación (11 microservicios +
+api-gateway) además de las 11 bases, RabbitMQ, Redis y Adminer.
 
 ```bash
-# Construir imágenes de los servicios
-docker compose build property-service rate-availability-service booking-service front-desk-service housekeeping-service billing-service
-
-# Levantar todo: 6× PostgreSQL + RabbitMQ + 6× servicios
-docker compose up -d
+# Construir y levantar TODO (26 contenedores)
+npm run stack:up
 
 # Ver estado
-docker compose ps
+npm run stack:ps
 
-# Ver logs
+# Ver logs (todos, en vivo)
+npm run stack:logs
+
+# Logs de un solo servicio
 docker compose logs property-service --tail 50
-docker compose logs rate-availability-service --tail 50
-docker compose logs booking-service --tail 50
-docker compose logs front-desk-service --tail 50
-docker compose logs housekeeping-service --tail 50
-docker compose logs billing-service --tail 50
 
 # Apagar todo
-docker compose down
+npm run stack:down
 ```
 
-> Los servicios en Docker usan `DATABASE_URL` con host `property-db` / `rate-availability-db`
-> (red interna) y corren `prisma migrate deploy` al arrancar. Para desarrollo día a día
-> se recomienda `npm run dev` (hot-reload); Docker es para demo / simular producción.
-> Cada servicio (booking, front-desk incluidos) tiene su `.env` propio (copiado de
-> `.env.example`) — sin él Prisma falla con `Environment variable not found: DATABASE_URL`.
+> Los servicios en Docker toman sus variables del propio `docker-compose.yml` (red interna,
+> valores de desarrollo) y corren `prisma migrate deploy` al arrancar; no necesitan los
+> `.env` de `services/*`. El front (`apps/front`) queda fuera del compose: corre en host
+> con `npm run dev:front` o en Vercel.
+>
+> Para desarrollo día a día usá `npm run db:up` + `npm run dev:*` (hot-reload, sin rebuild).
+> Si los servicios Docker están arriba, ocuparán los puertos 3001-3011 y `dev:*` fallará
+> con `EADDRINUSE`: bajalos con `npm run stack:down` antes.
 
 ## Ver datos visualmente
 
@@ -371,9 +372,9 @@ npm run monitoring:down
 | Grafana | `http://localhost:3030` | `admin` / `admin` | Dashboard **HotelSync — Overview** (carpeta `HotelSync`) |
 
 - **Job `hotelsync-health`:** blackbox-exporter hace `GET /health` a los 11 servicios y al gateway (12 targets), con `probe_success`, `probe_duration_seconds` y `probe_http_status_code`. El gateway se sondea en `8080`; si otra app local ocupa ese puerto, el probe da falso positivo (responde 200 a cualquier ruta).
-- **Job `hotelsync-metrics`:** scrape de `/metrics` (prom-client) en `property-service:3001`, `rate-availability-service:3002`, `user-service:3003`, `booking-service:3004`, `front-desk-service:3005` y `api-gateway:8080`. Métricas: `hotelsync_http_requests_total` y `hotelsync_http_request_duration_seconds` (etiquetas `method`, `route` normalizada, `status`), `hotelsync_http_requests_in_flight`, y en los servicios con outbox (`property`, `rate`, `booking`, `front-desk`) `hotelsync_outbox_pending_events` + `hotelsync_broker_connected`.
-- **Alcance actual:** pilotos en property, rate-availability, user, booking, front-desk y api-gateway (19 targets en total). Faltan housekeeping, billing, channel-manager, loyalty, payment y analytics; el patrón a copiar es `src/lib/metrics.ts` (con `ROUTE_PREFIXES` del servicio) + `app.use(httpMetrics)` + `GET /metrics` antes de `requireGateway`. Si un middleware rechaza antes de casar ruta, la etiqueta cae al prefijo montado (p. ej. `/v1/auth`) en vez de `unmatched`.
-- `/metrics` se monta antes de `requireGateway`, así que queda accesible sin secreto: aceptable en local; en producción conviene restringirlo a nivel de ingress/red.
+- **Job `hotelsync-metrics`:** scrape de `/metrics` (prom-client) en los 11 servicios (`3001`-`3011`) y el gateway (`8080`). Métricas: `hotelsync_http_requests_total` y `hotelsync_http_request_duration_seconds` (etiquetas `method`, `route` normalizada, `status`), `hotelsync_http_requests_in_flight`, y en los servicios con outbox (`property`, `rate`, `booking`, `front-desk`, `billing`, `loyalty`, `payment`, `analytics`) `hotelsync_outbox_pending_events` + `hotelsync_broker_connected`.
+- **Alcance actual:** los 11 servicios + gateway (24 targets en total con el job de health). El patrón es `src/lib/metrics.ts` (con `ROUTE_PREFIXES` del servicio; en analytics es `src/lib/prom-metrics.ts` para no chocar con las métricas de negocio) + `app.use(httpMetrics)` + `GET /metrics` antes de `requireGateway`. Si un middleware rechaza antes de casar ruta, la etiqueta cae al prefijo montado (p. ej. `/v1/auth`) en vez de `unmatched`.
+- `/metrics` se monta antes de `requireGateway`. En local/Docker queda abierto para el scrape; en Render exige `METRICS_TOKEN` (`Authorization: Bearer` o `x-metrics-token`) y responde 404 si no está configurado.
 
 ### Modelo de Datos
 

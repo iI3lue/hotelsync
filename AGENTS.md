@@ -10,7 +10,8 @@ Documentos extensos: README.md (instalación y endpoints), ARCHITECTURE.md (patr
 - Estructura por servicio: src/{routes,controllers,services,validators,middleware}/index.ts + prisma/{schema,seed,migrations} + tests/
 
 ## Comandos (desde la raíz)
-db:up → copiar .env.example a cada services/*/.env → npm install → migrate:* → seed:* → dev:*
+db:up (solo infra: 11 DBs + RabbitMQ + Redis + Adminer) → copiar .env.example a cada services/*/.env → npm install → migrate:* → seed:* → dev:*
+stack:up = build + levanta TODO en Docker (26 contenedores, incluye los 12 servicios) | stack:ps / stack:logs / stack:down
 npm run dev:<property|rate|booking|front-desk|housekeeping|billing|analytics|front> | npm test / lint (lint = tsc --noEmit) | build = tsc
 
 ## Reglas obligatorias
@@ -20,6 +21,8 @@ npm run dev:<property|rate|booking|front-desk|housekeeping|billing|analytics|fro
 - Eventos mediante outbox (pending→sent) + RabbitMQ: booking.created/cancelled, checkout.completed, folio.closed, metrics.updated. Sin RABBITMQ_URL quedan pending, sin interrumpir la operación.
 - Analytics: ETL idempotente por (hotel_id, date) sobre réplicas read-only de booking/property (sin migraciones ni joins cross-DB); en raw queries castear `date` a `::text`; dashboard `/admin/analytics` solo MANAGER/SUPER_ADMIN. ETL manual: `docker exec hotelsync-analytics-service-1 node dist/jobs/etl.js --from=YYYY-MM-DD --to=YYYY-MM-DD` (`to` exclusivo).
 - Cada servicio requiere su .env con DATABASE_URL propio, de lo contrario Prisma falla.
+- Seguridad (2026-11-16): gateway con rate limit global, cap de body (413), URL (414) y timeouts; servicios con `securityHeaders`, `metricsGuard` y `assertProductionSecrets`. Detalle, envs y rotacion en `docs/seguridad-2026-11-16.md`. Nunca commitear `.env`.
+- Antes de pushear un split: `npm run security:preflight` (valida hardening y fortaleza de secretos) + `npx prisma generate` si aplica + `lint`/`test`/`build`.
 
 ## Producción y splits (aprendido 2026-10-05)
 - 1 repo + 1 Render + 1 Neon por servicio (`iI3lue/hotelsync-*`). Clones locales en
