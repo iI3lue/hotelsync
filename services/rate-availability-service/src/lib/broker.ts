@@ -1,4 +1,5 @@
-import amqplib, { ChannelModel, ConfirmChannel, ConsumeMessage } from "amqplib";
+import amqplib, { ChannelModel, ConfirmChannel } from "amqplib";
+import { handleDelivery } from "./consumer-delivery.js";
 
 export const EXCHANGE = "hotelsync.events";
 const RABBITMQ_URL = process.env.RABBITMQ_URL || "amqp://localhost:5672";
@@ -117,26 +118,18 @@ export async function consume(
   prefetch = 10
 ): Promise<void> {
   const connectedChannel = await connect();
+  const deadLetterQueue = `${queue}.dlq`;
   await connectedChannel.assertQueue(queue, { durable: true });
+  await connectedChannel.assertQueue(deadLetterQueue, { durable: true });
   for (const routingKey of routingKeys) {
     await connectedChannel.bindQueue(queue, EXCHANGE, routingKey);
   }
   await connectedChannel.prefetch(prefetch);
   await connectedChannel.consume(
     queue,
-    async (message: ConsumeMessage | null) => {
+    (message) => {
       if (!message) return;
-      try {
-        const payload = JSON.parse(message.content.toString()) as unknown;
-        await handler(message.fields.routingKey, payload);
-        connectedChannel.ack(message);
-      } catch (error) {
-        console.error(
-          `[broker] error procesando ${message.fields.routingKey}, requeue`,
-          error
-        );
-        connectedChannel.nack(message, false, true);
-      }
+      void handleDelivery(connectedChannel, queue, deadLetterQueue, handler, message);
     },
     { noAck: false }
   );

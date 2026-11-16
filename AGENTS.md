@@ -19,6 +19,7 @@ npm run dev:<property|rate|booking|front-desk|housekeeping|billing|analytics|fro
 - Base de datos por servicio. Sin claves foráneas entre servicios, solo UUID. Sin joins entre bases de datos.
 - Booking: pending→confirmed con versión optimista (409 en conflicto) + reserva/libera inventario vía REST hacia R&A. Front Desk exige confirmed (409 en caso contrario). Sin doble check-in (booking_id UNIQUE).
 - Eventos mediante outbox (pending→sent) + RabbitMQ: booking.created/cancelled, checkout.completed, folio.closed, metrics.updated. Sin RABBITMQ_URL quedan pending, sin interrumpir la operación.
+- Consumidores: ack manual con retry acotado (`consumer-delivery.ts`: backoff 2s/15s/60s, `x-retry-count`, máx. 3) y DLQ `${cola}.dlq`. Nunca `nack(requeue=true)` en caliente ni reintentos infinitos: cada redelivery consume cuota del broker.
 - Analytics: ETL idempotente por (hotel_id, date) sobre réplicas read-only de booking/property (sin migraciones ni joins cross-DB); en raw queries castear `date` a `::text`; dashboard `/admin/analytics` solo MANAGER/SUPER_ADMIN. ETL manual: `docker exec hotelsync-analytics-service-1 node dist/jobs/etl.js --from=YYYY-MM-DD --to=YYYY-MM-DD` (`to` exclusivo).
 - Cada servicio requiere su .env con DATABASE_URL propio, de lo contrario Prisma falla.
 - Seguridad (2026-11-16): gateway con rate limit global, cap de body (413), URL (414) y timeouts; servicios con `securityHeaders`, `metricsGuard` y `assertProductionSecrets`. Detalle, envs y rotacion en `docs/seguridad-2026-11-16.md`. Nunca commitear `.env`.
