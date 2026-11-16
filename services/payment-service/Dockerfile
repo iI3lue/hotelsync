@@ -13,6 +13,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/services/payment-service/node_modules ./services/payment-service/node_modules
+COPY --from=builder /app/services/payment-service/node_modules/.prisma/client ./node_modules/.prisma/client
 COPY --from=builder /app/services/payment-service/dist ./services/payment-service/dist
 COPY --from=builder /app/services/payment-service/prisma ./services/payment-service/prisma
 COPY --from=builder /app/services/payment-service/package.json ./services/payment-service/

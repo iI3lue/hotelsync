@@ -13,6 +13,7 @@ FROM node:20-alpine AS runner
 WORKDIR /app
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/services/loyalty-service/node_modules ./services/loyalty-service/node_modules
+COPY --from=builder /app/services/loyalty-service/node_modules/.prisma/client ./node_modules/.prisma/client
 COPY --from=builder /app/services/loyalty-service/dist ./services/loyalty-service/dist
 COPY --from=builder /app/services/loyalty-service/prisma ./services/loyalty-service/prisma
 COPY --from=builder /app/services/loyalty-service/package.json ./services/loyalty-service/
