@@ -5,8 +5,16 @@ import { errorHandler } from "./middleware/error-handler";
 import { levelsRouter } from "./routes/levels";
 import { loyaltyRouter } from "./routes/loyalty";
 import { adminRouter } from "./routes/admin";
+import { httpMetrics, metricsHandler } from "./lib/metrics";
+import { assertProductionSecrets, metricsGuard, securityHeaders } from "./lib/security";
+
+assertProductionSecrets();
 
 const app = express();
+app.set("trust proxy", 1);
+app.use(securityHeaders);
+app.use(httpMetrics);
+app.get("/metrics", metricsGuard(), metricsHandler);
 app.use(requireGateway);
 app.use(express.json());
 

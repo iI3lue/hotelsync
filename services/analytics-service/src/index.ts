@@ -5,8 +5,16 @@ import { metricsRouter } from "./routes/metrics";
 import { dashboardRouter } from "./routes/dashboard";
 import { startOutboxDispatcher } from "./lib/outbox";
 import { startEtlScheduler } from "./jobs/scheduler";
+import { httpMetrics, metricsHandler } from "./lib/prom-metrics";
+import { assertProductionSecrets, metricsGuard, securityHeaders } from "./lib/security";
+
+assertProductionSecrets();
 
 const app = express();
+app.set("trust proxy", 1);
+app.use(securityHeaders);
+app.use(httpMetrics);
+app.get("/metrics", metricsGuard(), metricsHandler);
 app.use(requireGateway);
 app.use(express.json());
 

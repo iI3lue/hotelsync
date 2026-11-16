@@ -38,3 +38,7 @@ export async function connect(): Promise<ConfirmChannel> {
   })();
   return connecting;
 }
+
+export function isConnected(): boolean {
+  return confirmChannel !== null;
+}

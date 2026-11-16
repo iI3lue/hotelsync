@@ -6,10 +6,22 @@ import roomsRouter from "./routes/rooms.js";
 import { startConsumer } from "./lib/consumer.js";
 import prisma from "./lib/prisma.js";
 import { broker } from "./lib/broker.js";
+import { httpMetrics, metricsHandler } from "./lib/metrics.js";
+import {
+  assertProductionSecrets,
+  metricsGuard,
+  securityHeaders,
+} from "./lib/security.js";
+
+assertProductionSecrets();
 
 const app = express();
 const PORT = process.env.PORT || 3006;
 
+app.set("trust proxy", 1);
+app.use(securityHeaders);
+app.use(httpMetrics);
+app.get("/metrics", metricsGuard(), metricsHandler);
 app.use(requireGateway);
 
 app.use(express.json());

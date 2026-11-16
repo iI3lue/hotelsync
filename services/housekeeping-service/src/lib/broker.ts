@@ -95,7 +95,12 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export function isConnected(): boolean {
+  return confirmChannel !== null;
+}
+
 export const broker = {
   connect,
   consume,
+  isConnected,
 };

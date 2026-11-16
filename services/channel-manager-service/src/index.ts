@@ -3,10 +3,22 @@ import { requireGateway } from "./middleware/gateway.js";
 import { errorHandler } from "./middleware/error-handler.js";
 import simulatorRouter from "./routes/simulator.js";
 import { startEventsConsumer } from "./lib/events-consumer.js";
+import { httpMetrics, metricsHandler } from "./lib/metrics.js";
+import {
+  assertProductionSecrets,
+  metricsGuard,
+  securityHeaders,
+} from "./lib/security.js";
+
+assertProductionSecrets();
 
 const app = express();
 const PORT = process.env.PORT || 3008;
 
+app.set("trust proxy", 1);
+app.use(securityHeaders);
+app.use(httpMetrics);
+app.get("/metrics", metricsGuard(), metricsHandler);
 app.use(requireGateway);
 
 app.use(express.json({ limit: "256kb" }));

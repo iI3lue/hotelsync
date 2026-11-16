@@ -59,3 +59,7 @@ export async function publish(routingKey: string, payload: unknown): Promise<voi
     );
   });
 }
+
+export function isConnected(): boolean {
+  return confirmChannel !== null;
+}
